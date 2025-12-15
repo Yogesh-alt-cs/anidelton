@@ -13,12 +13,13 @@ import {
   VolumeX,
   ChevronDown,
   Loader2,
-  AlertCircle
+  AlertCircle,
+  Server
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { cn } from '@/lib/utils';
-import { useAnimeStreaming } from '@/hooks/useAnimeStreaming';
+import { useAnimeStreaming, StreamingProvider } from '@/hooks/useAnimeStreaming';
 import { useWatchProgress } from '@/hooks/useWatchProgress';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -43,8 +44,9 @@ const StreamPlayer = () => {
   const [showControls, setShowControls] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
   const [showEpisodes, setShowEpisodes] = useState(false);
+  const [showProviders, setShowProviders] = useState(false);
   
-  const { getAnimeInfo, getEpisodeSources, loading, error } = useAnimeStreaming();
+  const { getAnimeInfo, getEpisodeSources, switchProvider, currentProvider, providers, loading, error } = useAnimeStreaming();
   const { updateProgress, getEpisodeProgress } = useWatchProgress();
   
   const [animeInfo, setAnimeInfo] = useState<any>(null);
@@ -355,7 +357,24 @@ const StreamPlayer = () => {
                   variant="ghost"
                   size="sm"
                   className="text-white hover:bg-white/20 gap-1"
-                  onClick={() => setShowEpisodes(!showEpisodes)}
+                  onClick={() => {
+                    setShowProviders(!showProviders);
+                    setShowEpisodes(false);
+                    setShowSettings(false);
+                  }}
+                >
+                  <Server className="w-4 h-4" />
+                  {providers.find(p => p.id === currentProvider)?.name || 'Source'}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-white hover:bg-white/20 gap-1"
+                  onClick={() => {
+                    setShowEpisodes(!showEpisodes);
+                    setShowProviders(false);
+                    setShowSettings(false);
+                  }}
                 >
                   Episodes
                   <ChevronDown className="w-4 h-4" />
@@ -372,6 +391,36 @@ const StreamPlayer = () => {
             </div>
           </div>
         </div>
+
+        {/* Provider Selection Panel */}
+        {showProviders && (
+          <div className="absolute bottom-24 left-4 w-48 bg-card/95 backdrop-blur-sm rounded-xl overflow-hidden z-50">
+            <div className="p-3 border-b border-border">
+              <h3 className="font-medium">Streaming Source</h3>
+            </div>
+            <div className="p-2 space-y-1">
+              {providers.map((provider) => (
+                <button
+                  key={provider.id}
+                  onClick={() => {
+                    switchProvider(provider.id);
+                    setShowProviders(false);
+                    setStreamUrl('');
+                    setAnimeInfo(null);
+                  }}
+                  className={cn(
+                    "w-full text-left px-3 py-2 rounded-lg text-sm transition-colors",
+                    currentProvider === provider.id
+                      ? "bg-primary text-primary-foreground"
+                      : "hover:bg-secondary"
+                  )}
+                >
+                  {provider.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Settings Panel */}
         {showSettings && sources?.sources && (
