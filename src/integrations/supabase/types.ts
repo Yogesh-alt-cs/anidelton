@@ -14,7 +14,99 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          id: string
+          updated_at: string
+          user_id: string
+          username: string | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          id?: string
+          updated_at?: string
+          user_id: string
+          username?: string | null
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          id?: string
+          updated_at?: string
+          user_id?: string
+          username?: string | null
+        }
+        Relationships: []
+      }
+      watch_progress: {
+        Row: {
+          anime_id: number
+          completed: boolean
+          duration_seconds: number | null
+          episode_number: number
+          id: string
+          progress_seconds: number
+          user_id: string
+          watched_at: string
+        }
+        Insert: {
+          anime_id: number
+          completed?: boolean
+          duration_seconds?: number | null
+          episode_number: number
+          id?: string
+          progress_seconds?: number
+          user_id: string
+          watched_at?: string
+        }
+        Update: {
+          anime_id?: number
+          completed?: boolean
+          duration_seconds?: number | null
+          episode_number?: number
+          id?: string
+          progress_seconds?: number
+          user_id?: string
+          watched_at?: string
+        }
+        Relationships: []
+      }
+      watchlist: {
+        Row: {
+          anime_id: number
+          anime_image: string | null
+          anime_title: string
+          created_at: string
+          id: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          anime_id: number
+          anime_image?: string | null
+          anime_title: string
+          created_at?: string
+          id?: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          anime_id?: number
+          anime_image?: string | null
+          anime_title?: string
+          created_at?: string
+          id?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

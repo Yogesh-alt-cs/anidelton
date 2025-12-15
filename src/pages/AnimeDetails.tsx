@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { 
   Play, Plus, Share2, Star, Calendar, Clock, Film, 
-  ChevronDown, ChevronUp, Heart, ArrowLeft 
+  ChevronDown, ChevronUp, Heart, ArrowLeft, Loader2
 } from 'lucide-react';
 import { useAnimeDetails, useAnimeEpisodes, useRecommendations } from '@/hooks/useAnimeApi';
 import { Button } from '@/components/ui/button';
@@ -10,17 +10,28 @@ import BottomNav from '@/components/BottomNav';
 import EpisodeCard from '@/components/EpisodeCard';
 import AnimeCard from '@/components/AnimeCard';
 import { cn } from '@/lib/utils';
+import { useWatchlist } from '@/hooks/useWatchlist';
+import { useWatchProgress } from '@/hooks/useWatchProgress';
+import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'sonner';
 
 const AnimeDetails = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
   const animeId = id ? parseInt(id) : null;
+  const { user } = useAuth();
   
   const { data: anime, loading } = useAnimeDetails(animeId);
   const { data: episodes } = useAnimeEpisodes(animeId);
   const { data: recommendations } = useRecommendations(animeId);
+  const { isInWatchlist, addToWatchlist, removeFromWatchlist } = useWatchlist();
+  const { getLastWatchedEpisode } = useWatchProgress(animeId || undefined);
   
   const [isExpanded, setIsExpanded] = useState(false);
-  const [isInWatchlist, setIsInWatchlist] = useState(false);
+  const [addingToList, setAddingToList] = useState(false);
+
+  const watchlistItem = animeId ? isInWatchlist(animeId) : null;
+  const lastWatched = getLastWatchedEpisode();
 
   if (loading || !anime) {
     return (
@@ -36,6 +47,32 @@ const AnimeDetails = () => {
   }
 
   const imageUrl = anime.images?.webp?.large_image_url || anime.images?.jpg?.large_image_url;
+
+  const handleWatchNow = () => {
+    const episodeToWatch = lastWatched ? lastWatched.episode_number : 1;
+    navigate(`/watch/${animeId}?ep=${episodeToWatch}`);
+  };
+
+  const handleAddToList = async () => {
+    if (!user) {
+      toast.error('Please sign in to add to watchlist');
+      navigate('/auth');
+      return;
+    }
+    
+    setAddingToList(true);
+    if (watchlistItem) {
+      await removeFromWatchlist(animeId!);
+    } else {
+      await addToWatchlist(
+        animeId!,
+        anime.title_english || anime.title,
+        imageUrl || null,
+        'plan_to_watch'
+      );
+    }
+    setAddingToList(false);
+  };
 
   return (
     <div className="min-h-screen bg-background pb-24">
@@ -62,18 +99,14 @@ const AnimeDetails = () => {
         </button>
 
         {/* Play Button Overlay */}
-        {anime.trailer?.youtube_id && (
-          <a
-            href={anime.trailer.url || '#'}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"
-          >
-            <div className="w-20 h-20 rounded-full bg-primary/90 backdrop-blur-sm flex items-center justify-center shadow-lg shadow-primary/50 hover:scale-110 transition-transform animate-pulse-glow">
-              <Play className="w-8 h-8 text-primary-foreground fill-current ml-1" />
-            </div>
-          </a>
-        )}
+        <button
+          onClick={handleWatchNow}
+          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"
+        >
+          <div className="w-20 h-20 rounded-full bg-primary/90 backdrop-blur-sm flex items-center justify-center shadow-lg shadow-primary/50 hover:scale-110 transition-transform animate-pulse-glow">
+            <Play className="w-8 h-8 text-primary-foreground fill-current ml-1" />
+          </div>
+        </button>
       </div>
 
       {/* Content */}
@@ -133,22 +166,25 @@ const AnimeDetails = () => {
 
           {/* Action Buttons */}
           <div className="flex gap-3">
-            <Button variant="gradient" size="lg" className="flex-1 gap-2">
+            <Button variant="gradient" size="lg" className="flex-1 gap-2" onClick={handleWatchNow}>
               <Play className="w-5 h-5 fill-current" />
-              Watch Now
+              {lastWatched ? `Continue Ep ${lastWatched.episode_number}` : 'Watch Now'}
             </Button>
             <Button 
-              variant={isInWatchlist ? "accent" : "glass"} 
+              variant={watchlistItem ? "accent" : "glass"} 
               size="lg"
-              onClick={() => setIsInWatchlist(!isInWatchlist)}
+              onClick={handleAddToList}
+              disabled={addingToList}
               className="gap-2"
             >
-              {isInWatchlist ? (
+              {addingToList ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : watchlistItem ? (
                 <Heart className="w-5 h-5 fill-current" />
               ) : (
                 <Plus className="w-5 h-5" />
               )}
-              {isInWatchlist ? 'Added' : 'Add'}
+              {watchlistItem ? 'Added' : 'Add'}
             </Button>
           </div>
         </div>
@@ -202,13 +238,18 @@ const AnimeDetails = () => {
             </div>
             <div className="space-y-2">
               {episodes.slice(0, 10).map((episode, index) => (
-                <EpisodeCard
+                <div 
                   key={episode.mal_id}
-                  number={index + 1}
-                  title={episode.title}
-                  isWatched={index < 2}
-                  progress={index === 1 ? 45 : undefined}
-                />
+                  onClick={() => navigate(`/watch/${animeId}?ep=${index + 1}`)}
+                  className="cursor-pointer"
+                >
+                  <EpisodeCard
+                    number={index + 1}
+                    title={episode.title}
+                    isWatched={index < 2}
+                    progress={index === 1 ? 45 : undefined}
+                  />
+                </div>
               ))}
               {episodes.length > 10 && (
                 <Button variant="ghost" className="w-full mt-2">
