@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { 
   Play, Plus, Share2, Star, Calendar, Clock, Film, 
-  ChevronDown, ChevronUp, Heart, ArrowLeft, Loader2, Bell, BellOff
+  ChevronDown, ChevronUp, Heart, ArrowLeft, Loader2, Bell, BellOff, Video
 } from 'lucide-react';
 import { useAnimeDetails, useAnimeEpisodes, useRecommendations } from '@/hooks/useAnimeApi';
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,7 @@ import EpisodeCard from '@/components/EpisodeCard';
 import AnimeCard from '@/components/AnimeCard';
 import ReviewSection from '@/components/ReviewSection';
 import EpisodeListModal from '@/components/EpisodeListModal';
+import TrailerModal from '@/components/TrailerModal';
 import { cn } from '@/lib/utils';
 import { useWatchlist } from '@/hooks/useWatchlist';
 import { useWatchProgress } from '@/hooks/useWatchProgress';
@@ -35,6 +36,7 @@ const AnimeDetails = () => {
   const [addingToList, setAddingToList] = useState(false);
   const [showEpisodesModal, setShowEpisodesModal] = useState(false);
   const [togglingNotification, setTogglingNotification] = useState(false);
+  const [showTrailer, setShowTrailer] = useState(false);
 
   const hasNotification = animeId ? isSubscribed(animeId) : false;
 
@@ -193,11 +195,22 @@ const AnimeDetails = () => {
           </div>
 
           {/* Action Buttons */}
-          <div className="flex gap-3">
-            <Button variant="gradient" size="lg" className="flex-1 gap-2" onClick={handleWatchNow}>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="gradient" size="lg" className="flex-1 min-w-[140px] gap-2" onClick={handleWatchNow}>
               <Play className="w-5 h-5 fill-current" />
               {lastWatched ? `Continue Ep ${lastWatched.episode_number}` : 'Watch Now'}
             </Button>
+            {anime.trailer?.youtube_id && (
+              <Button 
+                variant="glass" 
+                size="lg"
+                onClick={() => setShowTrailer(true)}
+                className="gap-2"
+              >
+                <Video className="w-5 h-5" />
+                Trailer
+              </Button>
+            )}
             <Button 
               variant={watchlistItem ? "accent" : "glass"} 
               size="lg"
@@ -336,6 +349,14 @@ const AnimeDetails = () => {
         animeId={animeId!}
         animeTitle={anime.title_english || anime.title}
         onSelectEpisode={handleSelectEpisode}
+      />
+
+      {/* Trailer Modal */}
+      <TrailerModal
+        isOpen={showTrailer}
+        onClose={() => setShowTrailer(false)}
+        trailerYoutubeId={anime.trailer?.youtube_id}
+        animeTitle={anime.title_english || anime.title}
       />
 
       <BottomNav />
