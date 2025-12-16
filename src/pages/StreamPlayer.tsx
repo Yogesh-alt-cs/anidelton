@@ -23,6 +23,7 @@ import VideoPlayer from '@/components/VideoPlayer';
 import EmbedPlayer from '@/components/EmbedPlayer';
 import DownloadButton from '@/components/DownloadButton';
 import TrailerModal from '@/components/TrailerModal';
+import SocialShare from '@/components/SocialShare';
 import { selectBestSource } from '@/lib/consumet';
 import { toast } from 'sonner';
 
@@ -55,7 +56,23 @@ const StreamPlayer = () => {
   const [embedUrl, setEmbedUrl] = useState<string>('');
   const [loadError, setLoadError] = useState<string>('');
 
-  // Search for anime on Consumet using Jikan title
+  // Generate slug for embed URL fallback
+  const generateSlug = (title: string) => {
+    return title.toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .trim();
+  };
+
+  // Multiple embed providers for fallback
+  const getEmbedUrls = (slug: string, episode: number) => ({
+    gogoanime: `https://gogoanime3.co/streaming.php?anime=${slug}&episode=${episode}`,
+    gogoanime2: `https://gogoanime.tel/streaming.php?anime=${slug}&episode=${episode}`,
+    embtaku: `https://embtaku.com/streaming.php?id=${slug}-episode-${episode}`,
+  });
+
+  // Search for anime on Consumet using Jikan title  
   useEffect(() => {
     const findAnime = async () => {
       if (!jikanAnime) return;
@@ -63,19 +80,25 @@ const StreamPlayer = () => {
       setIsSearching(true);
       setLoadError('');
       
+      // Generate slug for fallback embed URL immediately
+      const slug = generateSlug(jikanAnime.title_english || jikanAnime.title);
+      const embedUrls = getEmbedUrls(slug, currentEpisode);
+      
+      // Set embed URL immediately as fallback
+      setEmbedUrl(embedUrls.embtaku);
+      
       const searchTerms = [
         jikanAnime.title_english,
         jikanAnime.title,
-        jikanAnime.title_japanese
       ].filter(Boolean);
       
+      // Try to search for better streaming sources
       for (const term of searchTerms) {
         if (!term) continue;
         
         try {
           const results = await searchAnime(term);
           if (results.length > 0) {
-            // Find best match
             const exactMatch = results.find(r => 
               r.title.toLowerCase() === term.toLowerCase()
             );
@@ -89,14 +112,7 @@ const StreamPlayer = () => {
         }
       }
       
-      // If search fails, try direct gogoanime slug
-      const slug = jikanAnime.title_english?.toLowerCase()
-        .replace(/[^a-z0-9\s-]/g, '')
-        .replace(/\s+/g, '-') || 
-        jikanAnime.title?.toLowerCase()
-        .replace(/[^a-z0-9\s-]/g, '')
-        .replace(/\s+/g, '-');
-      
+      // If search fails, use the slug
       if (slug) {
         setConsumetAnimeId(slug);
       }
@@ -105,7 +121,7 @@ const StreamPlayer = () => {
     };
     
     findAnime();
-  }, [jikanAnime, searchAnime]);
+  }, [jikanAnime, searchAnime, currentEpisode]);
 
   // Fetch anime info from Consumet
   useEffect(() => {
@@ -307,6 +323,13 @@ const StreamPlayer = () => {
             >
               <Settings className="w-5 h-5" />
             </Button>
+            
+            {/* Social Share */}
+            <SocialShare
+              title={`Watch ${displayTitle} - Episode ${currentEpisode}`}
+              description={jikanAnime?.synopsis?.slice(0, 100)}
+              image={jikanAnime?.images?.jpg?.large_image_url}
+            />
           </div>
         </div>
       </div>
@@ -558,6 +581,15 @@ const StreamPlayer = () => {
               )}
             </div>
           </div>
+          
+          {/* Social Share Panel */}
+          <SocialShare
+            title={displayTitle}
+            description={`Watch ${displayTitle} Episode ${currentEpisode} on AniDel`}
+            image={jikanAnime?.images?.jpg?.large_image_url}
+            variant="panel"
+            className="mt-4"
+          />
         </div>
       )}
 

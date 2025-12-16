@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 
 export type StreamingProvider = 'gogoanime' | 'zoro' | '9anime';
 
@@ -44,7 +44,12 @@ export interface AnimeInfo {
   }>;
 }
 
-const CORS_PROXY = 'https://corsproxy.io/?';
+// Multiple CORS proxies for fallback
+const CORS_PROXIES = [
+  'https://api.allorigins.win/raw?url=',
+  'https://corsproxy.org/?',
+  'https://api.codetabs.com/v1/proxy?quest=',
+];
 
 const PROVIDERS: { id: StreamingProvider; name: string; baseUrl: string }[] = [
   { id: 'gogoanime', name: 'Gogoanime', baseUrl: 'https://api.consumet.org/anime/gogoanime' },
@@ -52,12 +57,44 @@ const PROVIDERS: { id: StreamingProvider; name: string; baseUrl: string }[] = [
   { id: '9anime', name: '9Anime', baseUrl: 'https://api.consumet.org/anime/9anime' },
 ];
 
-// Helper to fetch with CORS proxy
+// Helper to fetch with CORS proxy fallbacks
 const fetchWithProxy = async (url: string) => {
-  const proxiedUrl = `${CORS_PROXY}${encodeURIComponent(url)}`;
-  const response = await fetch(proxiedUrl);
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
-  return response.json();
+  let lastError: Error | null = null;
+  
+  // First try direct fetch (might work for some APIs)
+  try {
+    const directResponse = await fetch(url);
+    if (directResponse.ok) {
+      return directResponse.json();
+    }
+  } catch {
+    // Direct fetch failed, try proxies
+  }
+  
+  // Try each CORS proxy
+  for (const proxy of CORS_PROXIES) {
+    try {
+      const proxiedUrl = `${proxy}${encodeURIComponent(url)}`;
+      const response = await fetch(proxiedUrl);
+      if (response.ok) {
+        const text = await response.text();
+        try {
+          return JSON.parse(text);
+        } catch {
+          // Some proxies return the response wrapped, try extracting
+          const jsonMatch = text.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            return JSON.parse(jsonMatch[0]);
+          }
+        }
+      }
+    } catch (err) {
+      lastError = err as Error;
+      continue;
+    }
+  }
+  
+  throw lastError || new Error('All CORS proxies failed');
 };
 
 export const useAnimeStreaming = () => {
