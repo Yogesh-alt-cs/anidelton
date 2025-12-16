@@ -8,13 +8,16 @@ interface StreamingSource {
   isM3U8: boolean;
 }
 
-interface EpisodeSource {
+interface Subtitle {
+  url: string;
+  lang: string;
+}
+
+export interface EpisodeSource {
   headers?: Record<string, string>;
   sources: StreamingSource[];
-  subtitles?: Array<{
-    url: string;
-    lang: string;
-  }>;
+  subtitles?: Subtitle[];
+  download?: string;
 }
 
 interface SearchResult {
@@ -25,11 +28,15 @@ interface SearchResult {
   subOrDub?: string;
 }
 
-interface AnimeInfo {
+export interface AnimeInfo {
   id: string;
   title: string;
   image: string;
   description?: string;
+  status?: string;
+  releaseDate?: string;
+  totalEpisodes?: number;
+  genres?: string[];
   episodes: Array<{
     id: string;
     number: number;
@@ -37,11 +44,21 @@ interface AnimeInfo {
   }>;
 }
 
+const CORS_PROXY = 'https://corsproxy.io/?';
+
 const PROVIDERS: { id: StreamingProvider; name: string; baseUrl: string }[] = [
   { id: 'gogoanime', name: 'Gogoanime', baseUrl: 'https://api.consumet.org/anime/gogoanime' },
   { id: 'zoro', name: 'Zoro', baseUrl: 'https://api.consumet.org/anime/zoro' },
   { id: '9anime', name: '9Anime', baseUrl: 'https://api.consumet.org/anime/9anime' },
 ];
+
+// Helper to fetch with CORS proxy
+const fetchWithProxy = async (url: string) => {
+  const proxiedUrl = `${CORS_PROXY}${encodeURIComponent(url)}`;
+  const response = await fetch(proxiedUrl);
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  return response.json();
+};
 
 export const useAnimeStreaming = () => {
   const [loading, setLoading] = useState(false);
@@ -60,25 +77,16 @@ export const useAnimeStreaming = () => {
     const baseUrl = getProviderUrl(providerToUse);
     
     try {
-      const response = await fetch(
-        `${baseUrl}/${encodeURIComponent(query)}`
-      );
-      
-      if (!response.ok) throw new Error('Search failed');
-      
-      const data = await response.json();
+      const data = await fetchWithProxy(`${baseUrl}/${encodeURIComponent(query)}`);
       return data.results || [];
     } catch (err) {
       // Try fallback providers
       for (const fallback of PROVIDERS.filter(p => p.id !== providerToUse)) {
         try {
-          const response = await fetch(
-            `${fallback.baseUrl}/${encodeURIComponent(query)}`
-          );
-          if (response.ok) {
-            const data = await response.json();
+          const data = await fetchWithProxy(`${fallback.baseUrl}/${encodeURIComponent(query)}`);
+          if (data.results?.length > 0) {
             setCurrentProvider(fallback.id);
-            return data.results || [];
+            return data.results;
           }
         } catch {
           continue;
@@ -101,23 +109,14 @@ export const useAnimeStreaming = () => {
     const baseUrl = getProviderUrl(providerToUse);
     
     try {
-      const response = await fetch(
-        `${baseUrl}/info/${encodeURIComponent(animeId)}`
-      );
-      
-      if (!response.ok) throw new Error('Failed to get anime info');
-      
-      const data = await response.json();
+      const data = await fetchWithProxy(`${baseUrl}/info/${encodeURIComponent(animeId)}`);
       return data;
     } catch (err) {
       // Try fallback providers
       for (const fallback of PROVIDERS.filter(p => p.id !== providerToUse)) {
         try {
-          const response = await fetch(
-            `${fallback.baseUrl}/info/${encodeURIComponent(animeId)}`
-          );
-          if (response.ok) {
-            const data = await response.json();
+          const data = await fetchWithProxy(`${fallback.baseUrl}/info/${encodeURIComponent(animeId)}`);
+          if (data) {
             setCurrentProvider(fallback.id);
             return data;
           }
@@ -142,23 +141,14 @@ export const useAnimeStreaming = () => {
     const baseUrl = getProviderUrl(providerToUse);
     
     try {
-      const response = await fetch(
-        `${baseUrl}/watch/${encodeURIComponent(episodeId)}`
-      );
-      
-      if (!response.ok) throw new Error('Failed to get episode sources');
-      
-      const data = await response.json();
+      const data = await fetchWithProxy(`${baseUrl}/watch/${encodeURIComponent(episodeId)}`);
       return data;
     } catch (err) {
       // Try fallback providers  
       for (const fallback of PROVIDERS.filter(p => p.id !== providerToUse)) {
         try {
-          const response = await fetch(
-            `${fallback.baseUrl}/watch/${encodeURIComponent(episodeId)}`
-          );
-          if (response.ok) {
-            const data = await response.json();
+          const data = await fetchWithProxy(`${fallback.baseUrl}/watch/${encodeURIComponent(episodeId)}`);
+          if (data?.sources?.length > 0) {
             setCurrentProvider(fallback.id);
             return data;
           }
@@ -175,6 +165,20 @@ export const useAnimeStreaming = () => {
     }
   }, [currentProvider]);
 
+  const getEmbedUrl = useCallback((episodeId: string, provider?: StreamingProvider): string => {
+    const providerToUse = provider || currentProvider;
+    switch (providerToUse) {
+      case 'gogoanime':
+        return `https://gogoanime.tel/streaming.php?id=${episodeId}`;
+      case 'zoro':
+        return `https://zoro.to/watch/${episodeId}`;
+      case '9anime':
+        return `https://9anime.to/watch/${episodeId}`;
+      default:
+        return '';
+    }
+  }, [currentProvider]);
+
   const switchProvider = (provider: StreamingProvider) => {
     setCurrentProvider(provider);
   };
@@ -183,6 +187,7 @@ export const useAnimeStreaming = () => {
     searchAnime,
     getAnimeInfo,
     getEpisodeSources,
+    getEmbedUrl,
     switchProvider,
     currentProvider,
     providers: PROVIDERS,

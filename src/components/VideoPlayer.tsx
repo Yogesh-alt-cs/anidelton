@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState, forwardRef, useImperativeHandle } from 'react';
 import Hls from 'hls.js';
 import { 
   Play, 
@@ -10,13 +10,23 @@ import {
   SkipBack,
   SkipForward,
   Loader2,
-  AlertCircle
+  AlertCircle,
+  Lock,
+  Unlock,
+  Settings,
+  Subtitles,
+  Gauge
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { cn } from '@/lib/utils';
 
 const CORS_PROXY = 'https://corsproxy.io/?';
+
+interface Subtitle {
+  url: string;
+  lang: string;
+}
 
 interface VideoPlayerProps {
   src: string;
@@ -27,9 +37,18 @@ interface VideoPlayerProps {
   autoPlay?: boolean;
   className?: string;
   headers?: Record<string, string>;
+  subtitles?: Subtitle[];
 }
 
-export const VideoPlayer = ({
+export interface VideoPlayerRef {
+  play: () => void;
+  pause: () => void;
+  seek: (time: number) => void;
+}
+
+const PLAYBACK_SPEEDS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
+
+export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(({
   src,
   title,
   subtitle,
@@ -37,8 +56,9 @@ export const VideoPlayer = ({
   onEnded,
   autoPlay = false,
   className,
-  headers
-}: VideoPlayerProps) => {
+  headers,
+  subtitles = []
+}, ref) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const hlsRef = useRef<Hls | null>(null);
@@ -54,6 +74,19 @@ export const VideoPlayer = ({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [buffered, setBuffered] = useState(0);
+  const [isLocked, setIsLocked] = useState(false);
+  const [playbackSpeed, setPlaybackSpeed] = useState(1);
+  const [showSpeedMenu, setShowSpeedMenu] = useState(false);
+  const [showSubtitleMenu, setShowSubtitleMenu] = useState(false);
+  const [currentSubtitle, setCurrentSubtitle] = useState<string | null>(null);
+
+  useImperativeHandle(ref, () => ({
+    play: () => videoRef.current?.play(),
+    pause: () => videoRef.current?.pause(),
+    seek: (time: number) => {
+      if (videoRef.current) videoRef.current.currentTime = time;
+    }
+  }));
 
   // Initialize HLS or native playback
   useEffect(() => {
@@ -63,14 +96,10 @@ export const VideoPlayer = ({
     setIsLoading(true);
     setError(null);
 
-    // Check if it's an HLS stream
     const isHLS = src.includes('.m3u8');
-    
-    // Add CORS proxy for HLS streams
     const streamUrl = isHLS ? `${CORS_PROXY}${encodeURIComponent(src)}` : src;
 
     if (isHLS && Hls.isSupported()) {
-      // Use HLS.js
       if (hlsRef.current) {
         hlsRef.current.destroy();
       }
@@ -118,7 +147,6 @@ export const VideoPlayer = ({
 
       hlsRef.current = hls;
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-      // Native HLS support (Safari)
       video.src = streamUrl;
       video.addEventListener('loadedmetadata', () => {
         setIsLoading(false);
@@ -127,7 +155,6 @@ export const VideoPlayer = ({
         }
       });
     } else {
-      // Direct video source
       video.src = src;
       video.addEventListener('loadedmetadata', () => {
         setIsLoading(false);
@@ -151,12 +178,14 @@ export const VideoPlayer = ({
       if (controlsTimeoutRef.current) {
         clearTimeout(controlsTimeoutRef.current);
       }
-      setShowControls(true);
-      controlsTimeoutRef.current = setTimeout(() => {
-        if (isPlaying) {
-          setShowControls(false);
-        }
-      }, 3000);
+      if (!isLocked) {
+        setShowControls(true);
+        controlsTimeoutRef.current = setTimeout(() => {
+          if (isPlaying) {
+            setShowControls(false);
+          }
+        }, 3000);
+      }
     };
 
     resetTimeout();
@@ -166,7 +195,49 @@ export const VideoPlayer = ({
         clearTimeout(controlsTimeoutRef.current);
       }
     };
-  }, [isPlaying]);
+  }, [isPlaying, isLocked]);
+
+  // Playback speed effect
+  useEffect(() => {
+    if (videoRef.current) {
+      videoRef.current.playbackRate = playbackSpeed;
+    }
+  }, [playbackSpeed]);
+
+  // Subtitle track effect
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    // Remove existing tracks
+    while (video.firstChild) {
+      if (video.firstChild.nodeName === 'TRACK') {
+        video.removeChild(video.firstChild);
+      } else {
+        break;
+      }
+    }
+
+    // Add subtitle tracks
+    subtitles.forEach((sub, index) => {
+      const track = document.createElement('track');
+      track.kind = 'subtitles';
+      track.label = sub.lang;
+      track.srclang = sub.lang.substring(0, 2).toLowerCase();
+      track.src = sub.url;
+      if (currentSubtitle === sub.lang) {
+        track.default = true;
+      }
+      video.appendChild(track);
+    });
+
+    // Set active track
+    if (video.textTracks) {
+      for (let i = 0; i < video.textTracks.length; i++) {
+        video.textTracks[i].mode = video.textTracks[i].label === currentSubtitle ? 'showing' : 'hidden';
+      }
+    }
+  }, [subtitles, currentSubtitle]);
 
   const handleTimeUpdate = () => {
     if (videoRef.current) {
@@ -176,7 +247,6 @@ export const VideoPlayer = ({
       setDuration(total);
       onTimeUpdate?.(current, total);
 
-      // Update buffered progress
       if (videoRef.current.buffered.length > 0) {
         const bufferedEnd = videoRef.current.buffered.end(videoRef.current.buffered.length - 1);
         setBuffered((bufferedEnd / total) * 100);
@@ -192,6 +262,7 @@ export const VideoPlayer = ({
   };
 
   const togglePlay = () => {
+    if (isLocked) return;
     if (videoRef.current) {
       if (isPlaying) {
         videoRef.current.pause();
@@ -218,6 +289,7 @@ export const VideoPlayer = ({
   };
 
   const handleSeek = (value: number[]) => {
+    if (isLocked) return;
     if (videoRef.current) {
       videoRef.current.currentTime = value[0];
       setCurrentTime(value[0]);
@@ -225,6 +297,7 @@ export const VideoPlayer = ({
   };
 
   const handleVolumeChange = (value: number[]) => {
+    if (isLocked) return;
     const vol = value[0];
     setVolume(vol);
     setIsMuted(vol === 0);
@@ -234,7 +307,18 @@ export const VideoPlayer = ({
     }
   };
 
+  const increaseVolume = () => {
+    const newVol = Math.min(1, volume + 0.1);
+    handleVolumeChange([newVol]);
+  };
+
+  const decreaseVolume = () => {
+    const newVol = Math.max(0, volume - 0.1);
+    handleVolumeChange([newVol]);
+  };
+
   const toggleMute = () => {
+    if (isLocked) return;
     if (videoRef.current) {
       const newMuted = !isMuted;
       videoRef.current.muted = newMuted;
@@ -243,9 +327,17 @@ export const VideoPlayer = ({
   };
 
   const skip = (seconds: number) => {
+    if (isLocked) return;
     if (videoRef.current) {
       videoRef.current.currentTime = Math.max(0, Math.min(duration, currentTime + seconds));
     }
+  };
+
+  const toggleLock = () => {
+    setIsLocked(!isLocked);
+    setShowControls(true);
+    setShowSpeedMenu(false);
+    setShowSubtitleMenu(false);
   };
 
   const formatTime = (seconds: number) => {
@@ -256,15 +348,17 @@ export const VideoPlayer = ({
   };
 
   const handleMouseMove = () => {
-    setShowControls(true);
-    if (controlsTimeoutRef.current) {
-      clearTimeout(controlsTimeoutRef.current);
-    }
-    controlsTimeoutRef.current = setTimeout(() => {
-      if (isPlaying) {
-        setShowControls(false);
+    if (!isLocked) {
+      setShowControls(true);
+      if (controlsTimeoutRef.current) {
+        clearTimeout(controlsTimeoutRef.current);
       }
-    }, 3000);
+      controlsTimeoutRef.current = setTimeout(() => {
+        if (isPlaying) {
+          setShowControls(false);
+        }
+      }, 3000);
+    }
   };
 
   return (
@@ -276,7 +370,7 @@ export const VideoPlayer = ({
         className
       )}
       onMouseMove={handleMouseMove}
-      onClick={() => setShowControls(true)}
+      onClick={() => !isLocked && setShowControls(true)}
     >
       {/* Video Element */}
       <video
@@ -309,125 +403,234 @@ export const VideoPlayer = ({
         </div>
       )}
 
-      {/* Controls Overlay */}
-      <div
-        className={cn(
-          "absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/40 transition-opacity duration-300",
-          showControls ? "opacity-100" : "opacity-0 pointer-events-none"
-        )}
+      {/* Lock Button (Always Visible) */}
+      <Button
+        variant="ghost"
+        size="icon"
+        className="absolute top-4 right-4 z-50 text-white hover:bg-white/20 h-10 w-10"
+        onClick={toggleLock}
       >
-        {/* Top Bar */}
-        {(title || subtitle) && (
-          <div className="absolute top-0 left-0 right-0 p-4">
+        {isLocked ? <Lock className="w-5 h-5" /> : <Unlock className="w-5 h-5" />}
+      </Button>
+
+      {/* Controls Overlay */}
+      {!isLocked && (
+        <div
+          className={cn(
+            "absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/40 transition-opacity duration-300",
+            showControls ? "opacity-100" : "opacity-0 pointer-events-none"
+          )}
+        >
+          {/* Top Bar */}
+          <div className="absolute top-0 left-0 right-14 p-4">
             {title && <h2 className="text-white font-medium truncate">{title}</h2>}
             {subtitle && <p className="text-white/70 text-sm">{subtitle}</p>}
           </div>
-        )}
 
-        {/* Center Play Button */}
-        {!isLoading && !error && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="w-16 h-16 rounded-full bg-white/20 backdrop-blur-sm text-white hover:bg-white/30 pointer-events-auto"
-              onClick={togglePlay}
-            >
-              {isPlaying ? (
-                <Pause className="w-8 h-8" />
-              ) : (
-                <Play className="w-8 h-8 ml-1" />
-              )}
-            </Button>
-          </div>
-        )}
-
-        {/* Bottom Controls */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 space-y-2">
-          {/* Progress Bar */}
-          <div className="relative w-full h-1 bg-white/20 rounded-full overflow-hidden">
-            {/* Buffered */}
-            <div
-              className="absolute h-full bg-white/30"
-              style={{ width: `${buffered}%` }}
-            />
-            {/* Progress */}
-            <Slider
-              value={[currentTime]}
-              max={duration || 100}
-              step={0.1}
-              onValueChange={handleSeek}
-              className="absolute inset-0"
-            />
-          </div>
-
-          {/* Time and Controls */}
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-1">
+          {/* Center Play Button */}
+          {!isLoading && !error && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
               <Button
                 variant="ghost"
                 size="icon"
-                className="text-white hover:bg-white/20 h-8 w-8"
+                className="w-16 h-16 rounded-full bg-white/20 backdrop-blur-sm text-white hover:bg-white/30 pointer-events-auto"
                 onClick={togglePlay}
               >
-                {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                {isPlaying ? (
+                  <Pause className="w-8 h-8" />
+                ) : (
+                  <Play className="w-8 h-8 ml-1" />
+                )}
               </Button>
+            </div>
+          )}
 
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-white hover:bg-white/20 h-8 w-8"
-                onClick={() => skip(-10)}
-              >
-                <SkipBack className="w-4 h-4" />
-              </Button>
+          {/* Bottom Controls */}
+          <div className="absolute bottom-0 left-0 right-0 p-4 space-y-2">
+            {/* Progress Bar */}
+            <div className="relative w-full h-1 bg-white/20 rounded-full overflow-hidden">
+              <div
+                className="absolute h-full bg-white/30"
+                style={{ width: `${buffered}%` }}
+              />
+              <Slider
+                value={[currentTime]}
+                max={duration || 100}
+                step={0.1}
+                onValueChange={handleSeek}
+                className="absolute inset-0"
+              />
+            </div>
 
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-white hover:bg-white/20 h-8 w-8"
-                onClick={() => skip(10)}
-              >
-                <SkipForward className="w-4 h-4" />
-              </Button>
-
-              <div className="flex items-center gap-1 ml-2">
+            {/* Time and Controls */}
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1">
                 <Button
                   variant="ghost"
                   size="icon"
                   className="text-white hover:bg-white/20 h-8 w-8"
-                  onClick={toggleMute}
+                  onClick={togglePlay}
                 >
-                  {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                  {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
                 </Button>
-                <div className="w-20 hidden sm:block">
-                  <Slider
-                    value={[isMuted ? 0 : volume]}
-                    max={1}
-                    step={0.05}
-                    onValueChange={handleVolumeChange}
-                  />
+
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-white hover:bg-white/20 h-8 w-8"
+                  onClick={() => skip(-10)}
+                >
+                  <SkipBack className="w-4 h-4" />
+                </Button>
+
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-white hover:bg-white/20 h-8 w-8"
+                  onClick={() => skip(10)}
+                >
+                  <SkipForward className="w-4 h-4" />
+                </Button>
+
+                <div className="flex items-center gap-1 ml-2">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-white hover:bg-white/20 h-8 w-8"
+                    onClick={toggleMute}
+                  >
+                    {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                  </Button>
+                  <div className="w-20 hidden sm:block">
+                    <Slider
+                      value={[isMuted ? 0 : volume]}
+                      max={1}
+                      step={0.05}
+                      onValueChange={handleVolumeChange}
+                    />
+                  </div>
                 </div>
+
+                <span className="text-white/80 text-xs ml-2">
+                  {formatTime(currentTime)} / {formatTime(duration)}
+                </span>
               </div>
 
-              <span className="text-white/80 text-xs ml-2">
-                {formatTime(currentTime)} / {formatTime(duration)}
-              </span>
-            </div>
+              <div className="flex items-center gap-1">
+                {/* Speed Control */}
+                <div className="relative">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-white hover:bg-white/20 h-8 w-8"
+                    onClick={() => {
+                      setShowSpeedMenu(!showSpeedMenu);
+                      setShowSubtitleMenu(false);
+                    }}
+                  >
+                    <Gauge className="w-4 h-4" />
+                  </Button>
+                  {showSpeedMenu && (
+                    <div className="absolute bottom-full right-0 mb-2 bg-card/95 backdrop-blur-sm rounded-lg p-2 min-w-[100px] shadow-lg border border-border">
+                      <p className="text-xs text-muted-foreground px-2 mb-1">Speed</p>
+                      {PLAYBACK_SPEEDS.map(speed => (
+                        <button
+                          key={speed}
+                          onClick={() => {
+                            setPlaybackSpeed(speed);
+                            setShowSpeedMenu(false);
+                          }}
+                          className={cn(
+                            "w-full text-left px-2 py-1 text-sm rounded transition-colors",
+                            playbackSpeed === speed
+                              ? "bg-primary text-primary-foreground"
+                              : "hover:bg-secondary text-foreground"
+                          )}
+                        >
+                          {speed}x
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
 
-            <Button
-              variant="ghost"
-              size="icon"
-              className="text-white hover:bg-white/20 h-8 w-8"
-              onClick={toggleFullscreen}
-            >
-              {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
-            </Button>
+                {/* Subtitles */}
+                {subtitles.length > 0 && (
+                  <div className="relative">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-white hover:bg-white/20 h-8 w-8"
+                      onClick={() => {
+                        setShowSubtitleMenu(!showSubtitleMenu);
+                        setShowSpeedMenu(false);
+                      }}
+                    >
+                      <Subtitles className="w-4 h-4" />
+                    </Button>
+                    {showSubtitleMenu && (
+                      <div className="absolute bottom-full right-0 mb-2 bg-card/95 backdrop-blur-sm rounded-lg p-2 min-w-[120px] shadow-lg border border-border">
+                        <p className="text-xs text-muted-foreground px-2 mb-1">Subtitles</p>
+                        <button
+                          onClick={() => {
+                            setCurrentSubtitle(null);
+                            setShowSubtitleMenu(false);
+                          }}
+                          className={cn(
+                            "w-full text-left px-2 py-1 text-sm rounded transition-colors",
+                            currentSubtitle === null
+                              ? "bg-primary text-primary-foreground"
+                              : "hover:bg-secondary text-foreground"
+                          )}
+                        >
+                          Off
+                        </button>
+                        {subtitles.map(sub => (
+                          <button
+                            key={sub.lang}
+                            onClick={() => {
+                              setCurrentSubtitle(sub.lang);
+                              setShowSubtitleMenu(false);
+                            }}
+                            className={cn(
+                              "w-full text-left px-2 py-1 text-sm rounded transition-colors",
+                              currentSubtitle === sub.lang
+                                ? "bg-primary text-primary-foreground"
+                                : "hover:bg-secondary text-foreground"
+                            )}
+                          >
+                            {sub.lang}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-white hover:bg-white/20 h-8 w-8"
+                  onClick={toggleFullscreen}
+                >
+                  {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
+      )}
+
+      {/* Locked State Indicator */}
+      {isLocked && (
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/60 text-white/80 px-3 py-1 rounded-full text-sm">
+          Screen locked - tap lock icon to unlock
+        </div>
+      )}
     </div>
   );
-};
+});
+
+VideoPlayer.displayName = 'VideoPlayer';
 
 export default VideoPlayer;
