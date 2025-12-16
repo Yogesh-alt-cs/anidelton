@@ -44,21 +44,35 @@ const StreamPlayer = () => {
   const [embedUrl, setEmbedUrl] = useState<string>('');
   const [loadError, setLoadError] = useState<string>('');
 
-  // Fetch anime info
+  // Fetch anime info - first search by title from Jikan, then get Consumet info
   useEffect(() => {
     const fetchInfo = async () => {
       if (!animeId) return;
       setLoadError('');
-      const info = await getAnimeInfo(animeId);
-      if (info) {
-        setAnimeInfo(info);
-      } else {
-        setLoadError('Failed to load anime info. The source may be unavailable.');
+      
+      // First try to get info directly with the animeId
+      let info = await getAnimeInfo(animeId);
+      
+      // If that fails, we need to search for the anime
+      if (!info) {
+        // Try searching with the animeId as a query (works if it's a slug)
+        const { searchAnime } = await import('@/hooks/useAnimeStreaming').then(m => {
+          const hook = m.useAnimeStreaming();
+          return { searchAnime: hook.searchAnime };
+        });
+        
+        // For now, set an error - user should use the embed player
+        setLoadError('Could not find streaming sources. Try switching to Embed mode.');
+        setPlayerMode('embed');
+        setEmbedUrl(`https://gogoanime.tel/videos/${animeId}-episode-${currentEpisode}`);
+        return;
       }
+      
+      setAnimeInfo(info);
     };
     
     fetchInfo();
-  }, [animeId, getAnimeInfo]);
+  }, [animeId, getAnimeInfo, currentEpisode]);
 
   // Fetch episode sources
   useEffect(() => {

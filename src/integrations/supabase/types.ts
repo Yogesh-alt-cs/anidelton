@@ -14,6 +14,108 @@ export type Database = {
   }
   public: {
     Tables: {
+      anime_notifications: {
+        Row: {
+          anime_id: number
+          anime_image: string | null
+          anime_title: string
+          created_at: string
+          episode_number: number
+          id: string
+          is_read: boolean | null
+          message: string
+          user_id: string
+        }
+        Insert: {
+          anime_id: number
+          anime_image?: string | null
+          anime_title: string
+          created_at?: string
+          episode_number: number
+          id?: string
+          is_read?: boolean | null
+          message: string
+          user_id: string
+        }
+        Update: {
+          anime_id?: number
+          anime_image?: string | null
+          anime_title?: string
+          created_at?: string
+          episode_number?: number
+          id?: string
+          is_read?: boolean | null
+          message?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      anime_reviews: {
+        Row: {
+          anime_id: number
+          content: string
+          created_at: string
+          id: string
+          likes_count: number | null
+          rating: number | null
+          spoiler: boolean | null
+          title: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          anime_id: number
+          content: string
+          created_at?: string
+          id?: string
+          likes_count?: number | null
+          rating?: number | null
+          spoiler?: boolean | null
+          title?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          anime_id?: number
+          content?: string
+          created_at?: string
+          id?: string
+          likes_count?: number | null
+          rating?: number | null
+          spoiler?: boolean | null
+          title?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      notification_subscriptions: {
+        Row: {
+          anime_id: number
+          anime_title: string
+          created_at: string
+          enabled: boolean | null
+          id: string
+          user_id: string
+        }
+        Insert: {
+          anime_id: number
+          anime_title: string
+          created_at?: string
+          enabled?: boolean | null
+          id?: string
+          user_id: string
+        }
+        Update: {
+          anime_id?: number
+          anime_title?: string
+          created_at?: string
+          enabled?: boolean | null
+          id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -40,6 +142,35 @@ export type Database = {
           username?: string | null
         }
         Relationships: []
+      }
+      review_likes: {
+        Row: {
+          created_at: string
+          id: string
+          review_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          review_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          review_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "review_likes_review_id_fkey"
+            columns: ["review_id"]
+            isOneToOne: false
+            referencedRelation: "anime_reviews"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       watch_progress: {
         Row: {
