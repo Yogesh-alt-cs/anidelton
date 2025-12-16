@@ -3,8 +3,11 @@ import Header from '@/components/Header';
 import BottomNav from '@/components/BottomNav';
 import FeaturedCarousel from '@/components/FeaturedCarousel';
 import AnimeSection from '@/components/AnimeSection';
+import AnimeRecommendations from '@/components/AnimeRecommendations';
+import { useAuth } from '@/contexts/AuthContext';
 
 const Index = () => {
+  const { user } = useAuth();
   const { data: topAiring, loading: loadingAiring } = useTopAnime('airing', 10);
   const { data: seasonal, loading: loadingSeasonal } = useSeasonalAnime(10);
   const { data: popular, loading: loadingPopular } = useTopAnime('bypopularity', 10);
@@ -32,6 +35,11 @@ const Index = () => {
           cardSize="md"
           showProgress
         />
+
+        {/* Personalized Recommendations */}
+        {user && (
+          <AnimeRecommendations limit={10} />
+        )}
 
         {/* Trending Now */}
         <AnimeSection
