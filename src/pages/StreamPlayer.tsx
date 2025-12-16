@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { 
   ArrowLeft, 
@@ -10,7 +10,8 @@ import {
   Tv,
   Film,
   Download,
-  RefreshCw
+  RefreshCw,
+  Video
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -21,6 +22,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import VideoPlayer from '@/components/VideoPlayer';
 import EmbedPlayer from '@/components/EmbedPlayer';
 import DownloadButton from '@/components/DownloadButton';
+import TrailerModal from '@/components/TrailerModal';
 import { selectBestSource } from '@/lib/consumet';
 import { toast } from 'sonner';
 
@@ -38,6 +40,7 @@ const StreamPlayer = () => {
   const [showSettings, setShowSettings] = useState(false);
   const [showEpisodes, setShowEpisodes] = useState(false);
   const [showProviders, setShowProviders] = useState(false);
+  const [showTrailer, setShowTrailer] = useState(false);
   const [playerMode, setPlayerMode] = useState<PlayerMode>('embed');
   const [isSearching, setIsSearching] = useState(false);
   
@@ -250,6 +253,18 @@ const StreamPlayer = () => {
           </div>
           
           <div className="flex gap-1">
+            {/* Trailer Button */}
+            {jikanAnime?.trailer?.youtube_id && (
+              <Button 
+                variant="ghost" 
+                size="icon"
+                onClick={() => setShowTrailer(true)}
+                title="Watch Trailer"
+              >
+                <Video className="w-5 h-5" />
+              </Button>
+            )}
+            
             {/* Player Mode Toggle */}
             <Button 
               variant="ghost" 
@@ -332,6 +347,8 @@ const StreamPlayer = () => {
             className="aspect-video w-full"
             headers={sources?.headers}
             subtitles={sources?.subtitles}
+            qualities={sources?.sources?.map(s => ({ quality: s.quality || 'Auto', url: s.url })) || []}
+            onQualityChange={(url) => setStreamUrl(url)}
           />
         )}
         
@@ -543,6 +560,14 @@ const StreamPlayer = () => {
           </div>
         </div>
       )}
+
+      {/* Trailer Modal */}
+      <TrailerModal
+        isOpen={showTrailer}
+        onClose={() => setShowTrailer(false)}
+        trailerYoutubeId={jikanAnime?.trailer?.youtube_id}
+        animeTitle={displayTitle}
+      />
     </div>
   );
 };
