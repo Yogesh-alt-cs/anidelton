@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState, forwardRef, useImperativeHandle } from 'react';
+import React, { useRef, useEffect, useState, forwardRef, useImperativeHandle, useCallback } from 'react';
 import Hls from 'hls.js';
 import { 
   Play, 
@@ -15,7 +15,9 @@ import {
   Unlock,
   Settings,
   Subtitles,
-  Gauge
+  Gauge,
+  Layers,
+  Keyboard
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
@@ -28,6 +30,11 @@ interface Subtitle {
   lang: string;
 }
 
+interface QualityOption {
+  quality: string;
+  url: string;
+}
+
 interface VideoPlayerProps {
   src: string;
   title?: string;
@@ -38,6 +45,8 @@ interface VideoPlayerProps {
   className?: string;
   headers?: Record<string, string>;
   subtitles?: Subtitle[];
+  qualities?: QualityOption[];
+  onQualityChange?: (url: string) => void;
 }
 
 export interface VideoPlayerRef {
@@ -57,7 +66,9 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(({
   autoPlay = false,
   className,
   headers,
-  subtitles = []
+  subtitles = [],
+  qualities = [],
+  onQualityChange
 }, ref) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -78,7 +89,10 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(({
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
   const [showSubtitleMenu, setShowSubtitleMenu] = useState(false);
+  const [showQualityMenu, setShowQualityMenu] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
   const [currentSubtitle, setCurrentSubtitle] = useState<string | null>(null);
+  const [currentQuality, setCurrentQuality] = useState<string>(src);
 
   useImperativeHandle(ref, () => ({
     play: () => videoRef.current?.play(),
@@ -238,6 +252,101 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(({
       }
     }
   }, [subtitles, currentSubtitle]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (isLocked) return;
+      
+      // Don't capture keyboard when typing in input fields
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      
+      switch (e.key.toLowerCase()) {
+        case ' ':
+        case 'k':
+          e.preventDefault();
+          togglePlay();
+          break;
+        case 'arrowleft':
+        case 'j':
+          e.preventDefault();
+          skip(-10);
+          break;
+        case 'arrowright':
+        case 'l':
+          e.preventDefault();
+          skip(10);
+          break;
+        case 'arrowup':
+          e.preventDefault();
+          increaseVolume();
+          break;
+        case 'arrowdown':
+          e.preventDefault();
+          decreaseVolume();
+          break;
+        case 'm':
+          e.preventDefault();
+          toggleMute();
+          break;
+        case 'f':
+          e.preventDefault();
+          toggleFullscreen();
+          break;
+        case 'escape':
+          if (isFullscreen) {
+            e.preventDefault();
+            toggleFullscreen();
+          }
+          break;
+        case ',':
+          e.preventDefault();
+          if (videoRef.current) {
+            videoRef.current.currentTime = Math.max(0, currentTime - 1/30);
+          }
+          break;
+        case '.':
+          e.preventDefault();
+          if (videoRef.current) {
+            videoRef.current.currentTime = Math.min(duration, currentTime + 1/30);
+          }
+          break;
+        case '<':
+          e.preventDefault();
+          setPlaybackSpeed(prev => Math.max(0.25, prev - 0.25));
+          break;
+        case '>':
+          e.preventDefault();
+          setPlaybackSpeed(prev => Math.min(2, prev + 0.25));
+          break;
+        case '0':
+        case '1':
+        case '2':
+        case '3':
+        case '4':
+        case '5':
+        case '6':
+        case '7':
+        case '8':
+        case '9':
+          e.preventDefault();
+          if (videoRef.current && duration) {
+            const percent = parseInt(e.key) / 10;
+            videoRef.current.currentTime = duration * percent;
+          }
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isLocked, currentTime, duration, isFullscreen]);
+
+  const handleQualityChange = (quality: QualityOption) => {
+    setCurrentQuality(quality.url);
+    onQualityChange?.(quality.url);
+    setShowQualityMenu(false);
+  };
 
   const handleTimeUpdate = () => {
     if (videoRef.current) {
@@ -606,6 +715,100 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(({
                     )}
                   </div>
                 )}
+
+                {/* Quality Selection */}
+                {qualities.length > 0 && (
+                  <div className="relative">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-white hover:bg-white/20 h-8 w-8"
+                      onClick={() => {
+                        setShowQualityMenu(!showQualityMenu);
+                        setShowSpeedMenu(false);
+                        setShowSubtitleMenu(false);
+                        setShowShortcuts(false);
+                      }}
+                    >
+                      <Layers className="w-4 h-4" />
+                    </Button>
+                    {showQualityMenu && (
+                      <div className="absolute bottom-full right-0 mb-2 bg-card/95 backdrop-blur-sm rounded-lg p-2 min-w-[120px] shadow-lg border border-border">
+                        <p className="text-xs text-muted-foreground px-2 mb-1">Quality</p>
+                        {qualities.map((q, index) => (
+                          <button
+                            key={index}
+                            onClick={() => handleQualityChange(q)}
+                            className={cn(
+                              "w-full text-left px-2 py-1 text-sm rounded transition-colors",
+                              currentQuality === q.url
+                                ? "bg-primary text-primary-foreground"
+                                : "hover:bg-secondary text-foreground"
+                            )}
+                          >
+                            {q.quality || 'Auto'}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Keyboard Shortcuts Help */}
+                <div className="relative hidden sm:block">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-white hover:bg-white/20 h-8 w-8"
+                    onClick={() => {
+                      setShowShortcuts(!showShortcuts);
+                      setShowSpeedMenu(false);
+                      setShowSubtitleMenu(false);
+                      setShowQualityMenu(false);
+                    }}
+                  >
+                    <Keyboard className="w-4 h-4" />
+                  </Button>
+                  {showShortcuts && (
+                    <div className="absolute bottom-full right-0 mb-2 bg-card/95 backdrop-blur-sm rounded-lg p-3 min-w-[200px] shadow-lg border border-border">
+                      <p className="text-xs font-medium text-foreground mb-2">Keyboard Shortcuts</p>
+                      <div className="space-y-1 text-xs">
+                        <div className="flex justify-between text-muted-foreground">
+                          <span>Play/Pause</span>
+                          <span className="font-mono bg-secondary px-1 rounded">Space / K</span>
+                        </div>
+                        <div className="flex justify-between text-muted-foreground">
+                          <span>Rewind 10s</span>
+                          <span className="font-mono bg-secondary px-1 rounded">← / J</span>
+                        </div>
+                        <div className="flex justify-between text-muted-foreground">
+                          <span>Forward 10s</span>
+                          <span className="font-mono bg-secondary px-1 rounded">→ / L</span>
+                        </div>
+                        <div className="flex justify-between text-muted-foreground">
+                          <span>Volume Up/Down</span>
+                          <span className="font-mono bg-secondary px-1 rounded">↑ / ↓</span>
+                        </div>
+                        <div className="flex justify-between text-muted-foreground">
+                          <span>Mute</span>
+                          <span className="font-mono bg-secondary px-1 rounded">M</span>
+                        </div>
+                        <div className="flex justify-between text-muted-foreground">
+                          <span>Fullscreen</span>
+                          <span className="font-mono bg-secondary px-1 rounded">F</span>
+                        </div>
+                        <div className="flex justify-between text-muted-foreground">
+                          <span>Seek to %</span>
+                          <span className="font-mono bg-secondary px-1 rounded">0-9</span>
+                        </div>
+                        <div className="flex justify-between text-muted-foreground">
+                          <span>Speed -/+</span>
+                          <span className="font-mono bg-secondary px-1 rounded">&lt; / &gt;</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
 
                 <Button
                   variant="ghost"
