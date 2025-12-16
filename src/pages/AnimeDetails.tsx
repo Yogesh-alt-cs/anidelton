@@ -2,16 +2,19 @@ import { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { 
   Play, Plus, Share2, Star, Calendar, Clock, Film, 
-  ChevronDown, ChevronUp, Heart, ArrowLeft, Loader2
+  ChevronDown, ChevronUp, Heart, ArrowLeft, Loader2, Bell, BellOff
 } from 'lucide-react';
 import { useAnimeDetails, useAnimeEpisodes, useRecommendations } from '@/hooks/useAnimeApi';
 import { Button } from '@/components/ui/button';
 import BottomNav from '@/components/BottomNav';
 import EpisodeCard from '@/components/EpisodeCard';
 import AnimeCard from '@/components/AnimeCard';
+import ReviewSection from '@/components/ReviewSection';
+import EpisodeListModal from '@/components/EpisodeListModal';
 import { cn } from '@/lib/utils';
 import { useWatchlist } from '@/hooks/useWatchlist';
 import { useWatchProgress } from '@/hooks/useWatchProgress';
+import { useNotifications } from '@/hooks/useNotifications';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 
@@ -26,9 +29,14 @@ const AnimeDetails = () => {
   const { data: recommendations } = useRecommendations(animeId);
   const { isInWatchlist, addToWatchlist, removeFromWatchlist } = useWatchlist();
   const { getLastWatchedEpisode } = useWatchProgress(animeId || undefined);
+  const { subscribeToAnime, unsubscribeFromAnime, isSubscribed } = useNotifications();
   
   const [isExpanded, setIsExpanded] = useState(false);
   const [addingToList, setAddingToList] = useState(false);
+  const [showEpisodesModal, setShowEpisodesModal] = useState(false);
+  const [togglingNotification, setTogglingNotification] = useState(false);
+
+  const hasNotification = animeId ? isSubscribed(animeId) : false;
 
   const watchlistItem = animeId ? isInWatchlist(animeId) : null;
   const lastWatched = getLastWatchedEpisode();
@@ -50,7 +58,7 @@ const AnimeDetails = () => {
 
   const handleWatchNow = () => {
     const episodeToWatch = lastWatched ? lastWatched.episode_number : 1;
-    navigate(`/watch/${animeId}?ep=${episodeToWatch}`);
+    navigate(`/stream/${animeId}?ep=${episodeToWatch}`);
   };
 
   const handleAddToList = async () => {
@@ -72,6 +80,26 @@ const AnimeDetails = () => {
       );
     }
     setAddingToList(false);
+  };
+
+  const handleToggleNotification = async () => {
+    if (!user) {
+      toast.error('Please sign in to enable notifications');
+      navigate('/auth');
+      return;
+    }
+    
+    setTogglingNotification(true);
+    if (hasNotification) {
+      await unsubscribeFromAnime(animeId!);
+    } else {
+      await subscribeToAnime(animeId!, anime.title_english || anime.title);
+    }
+    setTogglingNotification(false);
+  };
+
+  const handleSelectEpisode = (episodeNumber: number) => {
+    navigate(`/stream/${animeId}?ep=${episodeNumber}`);
   };
 
   return (
@@ -186,6 +214,21 @@ const AnimeDetails = () => {
               )}
               {watchlistItem ? 'Added' : 'Add'}
             </Button>
+            <Button 
+              variant={hasNotification ? "accent" : "glass"} 
+              size="lg"
+              onClick={handleToggleNotification}
+              disabled={togglingNotification}
+              title="Get notified when new episodes release"
+            >
+              {togglingNotification ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : hasNotification ? (
+                <BellOff className="w-5 h-5" />
+              ) : (
+                <Bell className="w-5 h-5" />
+              )}
+            </Button>
           </div>
         </div>
 
@@ -240,7 +283,7 @@ const AnimeDetails = () => {
               {episodes.slice(0, 10).map((episode, index) => (
                 <div 
                   key={episode.mal_id}
-                  onClick={() => navigate(`/watch/${animeId}?ep=${index + 1}`)}
+                  onClick={() => navigate(`/stream/${animeId}?ep=${index + 1}`)}
                   className="cursor-pointer"
                 >
                   <EpisodeCard
@@ -252,12 +295,24 @@ const AnimeDetails = () => {
                 </div>
               ))}
               {episodes.length > 10 && (
-                <Button variant="ghost" className="w-full mt-2">
+                <Button 
+                  variant="ghost" 
+                  className="w-full mt-2"
+                  onClick={() => setShowEpisodesModal(true)}
+                >
                   View All {episodes.length} Episodes
                 </Button>
               )}
             </div>
           </div>
+        )}
+
+        {/* Reviews Section */}
+        {animeId && (
+          <ReviewSection 
+            animeId={animeId} 
+            animeTitle={anime.title_english || anime.title} 
+          />
         )}
 
         {/* Recommendations */}
@@ -272,6 +327,16 @@ const AnimeDetails = () => {
           </div>
         )}
       </div>
+
+      {/* Episode List Modal */}
+      <EpisodeListModal
+        isOpen={showEpisodesModal}
+        onClose={() => setShowEpisodesModal(false)}
+        episodes={episodes}
+        animeId={animeId!}
+        animeTitle={anime.title_english || anime.title}
+        onSelectEpisode={handleSelectEpisode}
+      />
 
       <BottomNav />
     </div>

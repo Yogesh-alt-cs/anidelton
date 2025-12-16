@@ -1,87 +1,41 @@
-import { useState } from 'react';
-import { Bell, CheckCheck, Play, Heart, MessageCircle, Sparkles } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Bell, Check, Trash2, Loader2, Play, CheckCheck } from 'lucide-react';
 import Header from '@/components/Header';
 import BottomNav from '@/components/BottomNav';
 import { Button } from '@/components/ui/button';
+import { useNotifications } from '@/hooks/useNotifications';
+import { useAuth } from '@/contexts/AuthContext';
+import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 
-interface Notification {
-  id: string;
-  type: 'new_episode' | 'recommendation' | 'social' | 'update';
-  title: string;
-  message: string;
-  image?: string;
-  time: string;
-  read: boolean;
-}
-
-const mockNotifications: Notification[] = [
-  {
-    id: '1',
-    type: 'new_episode',
-    title: 'New Episode Available',
-    message: 'Jujutsu Kaisen Season 2 Episode 15 is now available!',
-    image: 'https://cdn.myanimelist.net/images/anime/1792/138022.jpg',
-    time: '2 hours ago',
-    read: false,
-  },
-  {
-    id: '2',
-    type: 'recommendation',
-    title: 'Recommended for You',
-    message: 'Based on your watch history, you might enjoy "Frieren: Beyond Journey\'s End"',
-    image: 'https://cdn.myanimelist.net/images/anime/1015/138006.jpg',
-    time: '5 hours ago',
-    read: false,
-  },
-  {
-    id: '3',
-    type: 'social',
-    title: 'Friend Activity',
-    message: 'Your friend @otaku_master added "Solo Leveling" to their watchlist',
-    time: '1 day ago',
-    read: true,
-  },
-  {
-    id: '4',
-    type: 'new_episode',
-    title: 'New Episode Available',
-    message: 'Demon Slayer: Hashira Training Arc Episode 8 is now available!',
-    image: 'https://cdn.myanimelist.net/images/anime/1286/99889.jpg',
-    time: '2 days ago',
-    read: true,
-  },
-  {
-    id: '5',
-    type: 'update',
-    title: 'App Update',
-    message: 'New features added! Check out our improved recommendation system.',
-    time: '3 days ago',
-    read: true,
-  },
-];
-
 const Notifications = () => {
-  const [notifications, setNotifications] = useState(mockNotifications);
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const { 
+    notifications, 
+    loading, 
+    unreadCount, 
+    markAsRead, 
+    markAllAsRead, 
+    deleteNotification 
+  } = useNotifications();
 
-  const markAllAsRead = () => {
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-  };
-
-  const unreadCount = notifications.filter(n => !n.read).length;
-
-  const getNotificationIcon = (type: Notification['type']) => {
-    switch (type) {
-      case 'new_episode':
-        return <Play className="w-4 h-4" />;
-      case 'recommendation':
-        return <Sparkles className="w-4 h-4" />;
-      case 'social':
-        return <Heart className="w-4 h-4" />;
-      case 'update':
-        return <Bell className="w-4 h-4" />;
-    }
-  };
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-background pb-24">
+        <Header showNotifications={false} />
+        <div className="flex flex-col items-center justify-center h-[60vh] px-4 text-center">
+          <Bell className="w-16 h-16 text-muted-foreground mb-4" />
+          <h2 className="text-xl font-semibold mb-2">Sign in to see notifications</h2>
+          <p className="text-muted-foreground mb-4">
+            Get notified when new episodes of your favorite anime are released
+          </p>
+          <Button onClick={() => navigate('/auth')}>Sign In</Button>
+        </div>
+        <BottomNav />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background pb-24">
@@ -109,37 +63,45 @@ const Notifications = () => {
           )}
         </div>
 
-        {/* Notification List */}
-        <div className="space-y-3">
-          {notifications.length > 0 ? (
-            notifications.map((notification, index) => (
+        {/* Notifications List */}
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          </div>
+        ) : notifications.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <div className="w-20 h-20 rounded-full bg-secondary flex items-center justify-center mb-4">
+              <Bell className="w-8 h-8 text-muted-foreground" />
+            </div>
+            <h4 className="text-lg font-medium mb-2">No notifications</h4>
+            <p className="text-sm text-muted-foreground max-w-xs">
+              Subscribe to your favorite anime to get notified when new episodes are released
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {notifications.map((notification, index) => (
               <div
                 key={notification.id}
                 className={cn(
-                  "flex gap-4 p-4 rounded-xl border transition-all animate-fade-in cursor-pointer hover:border-primary/30",
-                  notification.read 
+                  "flex gap-4 p-4 rounded-xl border transition-all animate-fade-in",
+                  notification.is_read 
                     ? "bg-card/50 border-border/50" 
                     : "bg-card border-primary/20"
                 )}
                 style={{ animationDelay: `${index * 50}ms` }}
               >
-                {/* Image or Icon */}
+                {/* Anime Image */}
                 <div className="flex-shrink-0">
-                  {notification.image ? (
+                  {notification.anime_image ? (
                     <img 
-                      src={notification.image} 
-                      alt="" 
-                      className="w-14 h-14 rounded-lg object-cover"
+                      src={notification.anime_image} 
+                      alt={notification.anime_title}
+                      className="w-14 h-20 rounded-lg object-cover"
                     />
                   ) : (
-                    <div className={cn(
-                      "w-14 h-14 rounded-lg flex items-center justify-center",
-                      notification.type === 'new_episode' && "bg-primary/10 text-primary",
-                      notification.type === 'recommendation' && "bg-accent/10 text-accent",
-                      notification.type === 'social' && "bg-pink-500/10 text-pink-500",
-                      notification.type === 'update' && "bg-secondary text-muted-foreground"
-                    )}>
-                      {getNotificationIcon(notification.type)}
+                    <div className="w-14 h-20 rounded-lg bg-primary/10 flex items-center justify-center">
+                      <Play className="w-5 h-5 text-primary" />
                     </div>
                   )}
                 </div>
@@ -149,37 +111,67 @@ const Notifications = () => {
                   <div className="flex items-start justify-between gap-2">
                     <h3 className={cn(
                       "font-medium text-sm",
-                      !notification.read && "text-primary"
+                      !notification.is_read && "text-primary"
                     )}>
-                      {notification.title}
+                      {notification.anime_title}
                     </h3>
-                    {!notification.read && (
+                    {!notification.is_read && (
                       <span className="w-2 h-2 rounded-full bg-primary flex-shrink-0 mt-1.5" />
                     )}
                   </div>
                   <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
                     {notification.message}
                   </p>
-                  <span className="text-xs text-muted-foreground mt-2 block">
-                    {notification.time}
-                  </span>
+                  
+                  <div className="flex items-center justify-between mt-3">
+                    <span className="text-xs text-muted-foreground">
+                      {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
+                    </span>
+                    
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="gap-1 h-7 px-2"
+                        onClick={() => {
+                          if (!notification.is_read) {
+                            markAsRead(notification.id);
+                          }
+                          navigate(`/stream/${notification.anime_id}?ep=${notification.episode_number}`);
+                        }}
+                      >
+                        <Play className="w-3 h-3" />
+                        Watch
+                      </Button>
+                      
+                      {!notification.is_read && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 w-7 p-0"
+                          onClick={() => markAsRead(notification.id)}
+                        >
+                          <Check className="w-3 h-3" />
+                        </Button>
+                      )}
+                      
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                        onClick={() => deleteNotification(notification.id)}
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  </div>
                 </div>
               </div>
-            ))
-          ) : (
-            <div className="flex flex-col items-center justify-center py-20 text-center">
-              <div className="w-20 h-20 rounded-full bg-secondary flex items-center justify-center mb-4">
-                <Bell className="w-8 h-8 text-muted-foreground" />
-              </div>
-              <h4 className="text-lg font-medium mb-2">No notifications</h4>
-              <p className="text-sm text-muted-foreground">
-                You're all caught up! Check back later.
-              </p>
-            </div>
-          )}
-        </div>
+            ))}
+          </div>
+        )}
       </main>
-
+      
       <BottomNav />
     </div>
   );
