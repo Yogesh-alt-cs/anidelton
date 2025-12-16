@@ -8,16 +8,21 @@ import {
   Server,
   Settings,
   Tv,
-  Film
+  Film,
+  Download,
+  RefreshCw
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useAnimeStreaming, StreamingProvider, EpisodeSource } from '@/hooks/useAnimeStreaming';
+import { useAnimeDetails } from '@/hooks/useAnimeApi';
 import { useWatchProgress } from '@/hooks/useWatchProgress';
 import { useAuth } from '@/contexts/AuthContext';
 import VideoPlayer from '@/components/VideoPlayer';
 import EmbedPlayer from '@/components/EmbedPlayer';
+import DownloadButton from '@/components/DownloadButton';
 import { selectBestSource } from '@/lib/consumet';
+import { toast } from 'sonner';
 
 type PlayerMode = 'hls' | 'embed';
 
@@ -33,51 +38,110 @@ const StreamPlayer = () => {
   const [showSettings, setShowSettings] = useState(false);
   const [showEpisodes, setShowEpisodes] = useState(false);
   const [showProviders, setShowProviders] = useState(false);
-  const [playerMode, setPlayerMode] = useState<PlayerMode>('hls');
+  const [playerMode, setPlayerMode] = useState<PlayerMode>('embed');
+  const [isSearching, setIsSearching] = useState(false);
   
-  const { getAnimeInfo, getEpisodeSources, getEmbedUrl, switchProvider, currentProvider, providers, loading, error } = useAnimeStreaming();
+  const { searchAnime, getAnimeInfo, getEpisodeSources, getEmbedUrl, switchProvider, currentProvider, providers, loading, error } = useAnimeStreaming();
+  const { data: jikanAnime, loading: jikanLoading } = useAnimeDetails(animeId ? parseInt(animeId) : null);
   const { updateProgress } = useWatchProgress();
   
+  const [consumetAnimeId, setConsumetAnimeId] = useState<string | null>(null);
   const [animeInfo, setAnimeInfo] = useState<any>(null);
   const [sources, setSources] = useState<EpisodeSource | null>(null);
   const [streamUrl, setStreamUrl] = useState<string>('');
   const [embedUrl, setEmbedUrl] = useState<string>('');
   const [loadError, setLoadError] = useState<string>('');
 
-  // Fetch anime info - first search by title from Jikan, then get Consumet info
+  // Search for anime on Consumet using Jikan title
   useEffect(() => {
-    const fetchInfo = async () => {
-      if (!animeId) return;
+    const findAnime = async () => {
+      if (!jikanAnime) return;
+      
+      setIsSearching(true);
       setLoadError('');
       
-      // First try to get info directly with the animeId
-      let info = await getAnimeInfo(animeId);
+      const searchTerms = [
+        jikanAnime.title_english,
+        jikanAnime.title,
+        jikanAnime.title_japanese
+      ].filter(Boolean);
       
-      // If that fails, we need to search for the anime
-      if (!info) {
-        // Try searching with the animeId as a query (works if it's a slug)
-        const { searchAnime } = await import('@/hooks/useAnimeStreaming').then(m => {
-          const hook = m.useAnimeStreaming();
-          return { searchAnime: hook.searchAnime };
-        });
+      for (const term of searchTerms) {
+        if (!term) continue;
         
-        // For now, set an error - user should use the embed player
-        setLoadError('Could not find streaming sources. Try switching to Embed mode.');
-        setPlayerMode('embed');
-        setEmbedUrl(`https://gogoanime.tel/videos/${animeId}-episode-${currentEpisode}`);
-        return;
+        try {
+          const results = await searchAnime(term);
+          if (results.length > 0) {
+            // Find best match
+            const exactMatch = results.find(r => 
+              r.title.toLowerCase() === term.toLowerCase()
+            );
+            const match = exactMatch || results[0];
+            setConsumetAnimeId(match.id);
+            setIsSearching(false);
+            return;
+          }
+        } catch (err) {
+          console.error('Search failed for:', term, err);
+        }
       }
       
-      setAnimeInfo(info);
+      // If search fails, try direct gogoanime slug
+      const slug = jikanAnime.title_english?.toLowerCase()
+        .replace(/[^a-z0-9\s-]/g, '')
+        .replace(/\s+/g, '-') || 
+        jikanAnime.title?.toLowerCase()
+        .replace(/[^a-z0-9\s-]/g, '')
+        .replace(/\s+/g, '-');
+      
+      if (slug) {
+        setConsumetAnimeId(slug);
+      }
+      
+      setIsSearching(false);
+    };
+    
+    findAnime();
+  }, [jikanAnime, searchAnime]);
+
+  // Fetch anime info from Consumet
+  useEffect(() => {
+    const fetchInfo = async () => {
+      if (!consumetAnimeId) return;
+      setLoadError('');
+      
+      try {
+        const info = await getAnimeInfo(consumetAnimeId);
+        if (info) {
+          setAnimeInfo(info);
+        } else {
+          // Generate embed URL as fallback
+          const embed = `https://gogoanime.gg/videos/${consumetAnimeId}-episode-${currentEpisode}`;
+          setEmbedUrl(embed);
+          setPlayerMode('embed');
+        }
+      } catch (err) {
+        console.error('Failed to get anime info:', err);
+        setLoadError('Could not find streaming sources');
+        setPlayerMode('embed');
+      }
     };
     
     fetchInfo();
-  }, [animeId, getAnimeInfo, currentEpisode]);
+  }, [consumetAnimeId, getAnimeInfo, currentEpisode]);
 
   // Fetch episode sources
   useEffect(() => {
     const fetchSources = async () => {
-      if (!animeInfo?.episodes?.length) return;
+      if (!animeInfo?.episodes?.length) {
+        // Generate direct embed URL if no episode info
+        if (consumetAnimeId) {
+          const embed = getEmbedUrl(`${consumetAnimeId}-episode-${currentEpisode}`);
+          setEmbedUrl(embed);
+        }
+        return;
+      }
+      
       setLoadError('');
       
       const episode = animeInfo.episodes.find((ep: any) => ep.number === currentEpisode);
@@ -94,24 +158,25 @@ const StreamPlayer = () => {
       setEmbedUrl(embed);
       
       // Fetch HLS sources
-      const sourcesData = await getEpisodeSources(episode.id);
-      if (sourcesData && sourcesData.sources?.length > 0) {
-        setSources(sourcesData);
-        const best = selectBestSource(sourcesData.sources);
-        if (best) {
-          setStreamUrl(best.url);
+      try {
+        const sourcesData = await getEpisodeSources(episode.id);
+        if (sourcesData && sourcesData.sources?.length > 0) {
+          setSources(sourcesData);
+          const best = selectBestSource(sourcesData.sources);
+          if (best) {
+            setStreamUrl(best.url);
+          }
+        } else {
+          setPlayerMode('embed');
         }
-      } else {
-        // If HLS fails, default to embed
+      } catch (err) {
+        console.error('Failed to get episode sources:', err);
         setPlayerMode('embed');
-        if (!embed) {
-          setLoadError('No streaming sources available for this episode.');
-        }
       }
     };
     
     fetchSources();
-  }, [animeInfo, currentEpisode, getEpisodeSources, getEmbedUrl]);
+  }, [animeInfo, currentEpisode, getEpisodeSources, getEmbedUrl, consumetAnimeId]);
 
   const handleTimeUpdate = (currentTime: number, duration: number) => {
     if (user && animeId && duration > 0) {
@@ -140,6 +205,7 @@ const StreamPlayer = () => {
     setEmbedUrl('');
     setSources(null);
     setAnimeInfo(null);
+    setConsumetAnimeId(null);
   };
 
   const selectQuality = (url: string) => {
@@ -151,8 +217,19 @@ const StreamPlayer = () => {
     setPlayerMode(prev => prev === 'hls' ? 'embed' : 'hls');
   };
 
+  const retryLoad = () => {
+    setConsumetAnimeId(null);
+    setAnimeInfo(null);
+    setSources(null);
+    setStreamUrl('');
+    setEmbedUrl('');
+    setLoadError('');
+  };
+
   const canPlayHLS = streamUrl && playerMode === 'hls';
   const canPlayEmbed = embedUrl && playerMode === 'embed';
+  const isLoading = loading || jikanLoading || isSearching;
+  const displayTitle = animeInfo?.title || jikanAnime?.title_english || jikanAnime?.title || 'Loading...';
 
   return (
     <div className="min-h-screen bg-background">
@@ -168,9 +245,7 @@ const StreamPlayer = () => {
           </Button>
           
           <div className="text-center flex-1 px-4">
-            <h1 className="font-medium truncate">
-              {animeInfo?.title || 'Loading...'}
-            </h1>
+            <h1 className="font-medium truncate">{displayTitle}</h1>
             <p className="text-muted-foreground text-sm">Episode {currentEpisode}</p>
           </div>
           
@@ -184,6 +259,16 @@ const StreamPlayer = () => {
             >
               {playerMode === 'hls' ? <Tv className="w-5 h-5" /> : <Film className="w-5 h-5" />}
             </Button>
+            
+            {/* Download Button */}
+            {animeId && streamUrl && (
+              <DownloadButton
+                animeId={parseInt(animeId)}
+                animeTitle={displayTitle}
+                episodeNumber={currentEpisode}
+                videoUrl={streamUrl}
+              />
+            )}
             
             <Button 
               variant="ghost" 
@@ -213,24 +298,25 @@ const StreamPlayer = () => {
 
       {/* Video Player */}
       <div className="relative">
-        {loading && !streamUrl && !embedUrl && (
+        {isLoading && !streamUrl && !embedUrl && (
           <div className="aspect-video flex flex-col items-center justify-center bg-secondary gap-4">
             <Loader2 className="w-12 h-12 animate-spin text-primary" />
-            <p className="text-muted-foreground">Loading stream...</p>
+            <p className="text-muted-foreground">
+              {isSearching ? 'Finding streams...' : 'Loading...'}
+            </p>
           </div>
         )}
         
-        {(error || loadError) && !streamUrl && !embedUrl && (
+        {(error || loadError) && !canPlayHLS && !canPlayEmbed && !isLoading && (
           <div className="aspect-video flex flex-col items-center justify-center bg-secondary gap-4 p-4">
             <AlertCircle className="w-12 h-12 text-destructive" />
             <p className="text-destructive text-center">{error || loadError}</p>
             <div className="flex gap-2">
               <Button onClick={() => navigate(-1)}>Go Back</Button>
-              {embedUrl && (
-                <Button variant="outline" onClick={() => setPlayerMode('embed')}>
-                  Try Embed Player
-                </Button>
-              )}
+              <Button variant="outline" onClick={retryLoad}>
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Retry
+              </Button>
             </div>
           </div>
         )}
@@ -239,7 +325,7 @@ const StreamPlayer = () => {
         {canPlayHLS && (
           <VideoPlayer
             src={streamUrl}
-            title={animeInfo?.title}
+            title={displayTitle}
             subtitle={`Episode ${currentEpisode}`}
             onTimeUpdate={handleTimeUpdate}
             autoPlay
@@ -253,9 +339,17 @@ const StreamPlayer = () => {
         {canPlayEmbed && (
           <EmbedPlayer
             embedUrl={embedUrl}
-            title={`${animeInfo?.title} - Episode ${currentEpisode}`}
+            title={`${displayTitle} - Episode ${currentEpisode}`}
             className="w-full"
           />
+        )}
+        
+        {/* No player available message */}
+        {!isLoading && !canPlayHLS && !canPlayEmbed && !error && !loadError && (
+          <div className="aspect-video flex flex-col items-center justify-center bg-secondary gap-4">
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            <p className="text-muted-foreground text-sm">Preparing video...</p>
+          </div>
         )}
 
         {/* Provider Selection Panel */}
@@ -363,7 +457,7 @@ const StreamPlayer = () => {
           </Button>
         </div>
 
-        {animeInfo?.episodes && (
+        {animeInfo?.episodes ? (
           <div className={cn(
             "grid gap-2 transition-all",
             showEpisodes ? "grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10" : "grid-cols-4 sm:grid-cols-6"
@@ -383,41 +477,66 @@ const StreamPlayer = () => {
               </button>
             ))}
           </div>
+        ) : (
+          // Generate episode buttons based on Jikan data
+          jikanAnime?.episodes && (
+            <div className={cn(
+              "grid gap-2 transition-all",
+              showEpisodes ? "grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10" : "grid-cols-4 sm:grid-cols-6"
+            )}>
+              {Array.from({ length: showEpisodes ? jikanAnime.episodes : Math.min(12, jikanAnime.episodes) }, (_, i) => (
+                <button
+                  key={i + 1}
+                  onClick={() => changeEpisode(i + 1)}
+                  className={cn(
+                    "aspect-square rounded-lg flex items-center justify-center text-sm font-medium transition-colors",
+                    currentEpisode === i + 1
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-secondary hover:bg-secondary/80"
+                  )}
+                >
+                  {i + 1}
+                </button>
+              ))}
+            </div>
+          )
         )}
         
-        {!showEpisodes && animeInfo?.episodes?.length > 12 && (
+        {!showEpisodes && (animeInfo?.episodes?.length > 12 || (jikanAnime?.episodes && jikanAnime.episodes > 12)) && (
           <Button
             variant="ghost"
             className="w-full mt-2"
             onClick={() => setShowEpisodes(true)}
           >
-            Show all {animeInfo.episodes.length} episodes
+            Show all {animeInfo?.episodes?.length || jikanAnime?.episodes} episodes
           </Button>
         )}
       </div>
 
       {/* Anime Info */}
-      {animeInfo && (
+      {(animeInfo || jikanAnime) && (
         <div className="p-4 border-t border-border">
           <div className="flex gap-4">
-            {animeInfo.image && (
+            {(animeInfo?.image || jikanAnime?.images?.jpg?.image_url) && (
               <img
-                src={animeInfo.image}
-                alt={animeInfo.title}
+                src={animeInfo?.image || jikanAnime?.images?.jpg?.image_url}
+                alt={displayTitle}
                 className="w-24 h-36 object-cover rounded-lg"
               />
             )}
             <div className="flex-1 min-w-0">
-              <h3 className="font-semibold text-lg">{animeInfo.title}</h3>
-              {animeInfo.status && (
-                <p className="text-sm text-primary">{animeInfo.status}</p>
+              <h3 className="font-semibold text-lg">{displayTitle}</h3>
+              {(animeInfo?.status || jikanAnime?.status) && (
+                <p className="text-sm text-primary">{animeInfo?.status || jikanAnime?.status}</p>
               )}
-              {animeInfo.totalEpisodes && (
-                <p className="text-sm text-muted-foreground">{animeInfo.totalEpisodes} Episodes</p>
+              {(animeInfo?.totalEpisodes || jikanAnime?.episodes) && (
+                <p className="text-sm text-muted-foreground">
+                  {animeInfo?.totalEpisodes || jikanAnime?.episodes} Episodes
+                </p>
               )}
-              {animeInfo.description && (
+              {(animeInfo?.description || jikanAnime?.synopsis) && (
                 <p className="text-muted-foreground text-sm line-clamp-3 mt-2">
-                  {animeInfo.description}
+                  {animeInfo?.description || jikanAnime?.synopsis}
                 </p>
               )}
             </div>
