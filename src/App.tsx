@@ -15,6 +15,8 @@ import Auth from "./pages/Auth";
 import Watch from "./pages/Watch";
 import StreamPlayer from "./pages/StreamPlayer";
 import Settings from "./pages/Settings";
+import Genres from "./pages/Genres";
+import History from "./pages/History";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -39,6 +41,8 @@ function App() {
                 <Route path="/watch/:animeId" element={<Watch />} />
                 <Route path="/stream/:animeId" element={<StreamPlayer />} />
                 <Route path="/settings" element={<Settings />} />
+                <Route path="/genres" element={<Genres />} />
+                <Route path="/history" element={<History />} />
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />
               </Routes>

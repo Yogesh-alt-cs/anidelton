@@ -28,15 +28,16 @@ export const useWatchHistory = () => {
     }
 
     try {
+      // Use raw query since types haven't regenerated yet
       const { data, error } = await supabase
-        .from('watch_history')
+        .from('watch_history' as any)
         .select('*')
         .eq('user_id', user.id)
         .order('watched_at', { ascending: false })
         .limit(100);
 
       if (error) throw error;
-      setHistory((data as WatchHistoryItem[]) || []);
+      setHistory((data as unknown as WatchHistoryItem[]) || []);
     } catch (error) {
       console.error('Error fetching watch history:', error);
     } finally {
@@ -70,7 +71,7 @@ export const useWatchHistory = () => {
 
       if (existing) {
         const { error } = await supabase
-          .from('watch_history')
+          .from('watch_history' as any)
           .update({
             progress_seconds: progressSeconds,
             duration_seconds: durationSeconds || existing.duration_seconds,
@@ -82,7 +83,7 @@ export const useWatchHistory = () => {
         if (error) throw error;
       } else {
         const { error } = await supabase
-          .from('watch_history')
+          .from('watch_history' as any)
           .insert({
             user_id: user.id,
             anime_id: animeId,
@@ -108,7 +109,7 @@ export const useWatchHistory = () => {
   const removeFromHistory = async (id: string) => {
     try {
       const { error } = await supabase
-        .from('watch_history')
+        .from('watch_history' as any)
         .delete()
         .eq('id', id);
 
@@ -127,7 +128,7 @@ export const useWatchHistory = () => {
 
     try {
       const { error } = await supabase
-        .from('watch_history')
+        .from('watch_history' as any)
         .delete()
         .eq('user_id', user.id);
 
