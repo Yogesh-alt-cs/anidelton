@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { 
   Sword, 
   Heart, 
@@ -45,7 +44,6 @@ const GENRES = [
 ];
 
 const Genres = () => {
-  const navigate = useNavigate();
   const [selectedGenre, setSelectedGenre] = useState<number>(GENRES[0].id);
   const selectedGenreName = GENRES.find(g => g.id === selectedGenre)?.name || 'Action';
   
@@ -96,7 +94,6 @@ const Genres = () => {
               <AnimeCard
                 key={anime.mal_id}
                 anime={anime}
-                onClick={() => navigate(`/anime/${anime.mal_id}`)}
               />
             ))
           )}

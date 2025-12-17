@@ -18,6 +18,7 @@ import { cn } from '@/lib/utils';
 import { useAnimeStreaming, StreamingProvider, EpisodeSource } from '@/hooks/useAnimeStreaming';
 import { useAnimeDetails } from '@/hooks/useAnimeApi';
 import { useWatchProgress } from '@/hooks/useWatchProgress';
+import { useWatchHistory } from '@/hooks/useWatchHistory';
 import { useAuth } from '@/contexts/AuthContext';
 import VideoPlayer from '@/components/VideoPlayer';
 import EmbedPlayer from '@/components/EmbedPlayer';
@@ -44,16 +45,19 @@ const StreamPlayer = () => {
   const [showTrailer, setShowTrailer] = useState(false);
   const [playerMode, setPlayerMode] = useState<PlayerMode>('embed');
   const [isSearching, setIsSearching] = useState(false);
+  const [audioType, setAudioType] = useState<'sub' | 'dub'>('sub');
   
   const { searchAnime, getAnimeInfo, getEpisodeSources, getEmbedUrl, switchProvider, currentProvider, providers, loading, error } = useAnimeStreaming();
   const { data: jikanAnime, loading: jikanLoading } = useAnimeDetails(animeId ? parseInt(animeId) : null);
   const { updateProgress } = useWatchProgress();
+  const { addToHistory } = useWatchHistory();
   
   const [consumetAnimeId, setConsumetAnimeId] = useState<string | null>(null);
   const [animeInfo, setAnimeInfo] = useState<any>(null);
   const [sources, setSources] = useState<EpisodeSource | null>(null);
   const [streamUrl, setStreamUrl] = useState<string>('');
   const [embedUrl, setEmbedUrl] = useState<string>('');
+  const [fallbackEmbedUrls, setFallbackEmbedUrls] = useState<string[]>([]);
   const [loadError, setLoadError] = useState<string>('');
 
   // Generate slug for embed URL fallback
@@ -65,12 +69,16 @@ const StreamPlayer = () => {
       .trim();
   };
 
-  // Multiple embed providers for fallback
-  const getEmbedUrls = (slug: string, episode: number) => ({
-    gogoanime: `https://gogoanime3.co/streaming.php?anime=${slug}&episode=${episode}`,
-    gogoanime2: `https://gogoanime.tel/streaming.php?anime=${slug}&episode=${episode}`,
-    embtaku: `https://embtaku.com/streaming.php?id=${slug}-episode-${episode}`,
-  });
+  // Multiple embed providers for fallback - with sub/dub support
+  const getEmbedUrls = (slug: string, episode: number, type: 'sub' | 'dub' = 'sub') => {
+    const dubSuffix = type === 'dub' ? '-dub' : '';
+    return {
+      gogoanime: `https://gogoanime3.co/streaming.php?anime=${slug}${dubSuffix}&episode=${episode}`,
+      gogoanime2: `https://anitaku.pe/streaming.php?id=${slug}${dubSuffix}-episode-${episode}`,
+      embtaku: `https://embtaku.com/streaming.php?id=${slug}${dubSuffix}-episode-${episode}`,
+      vidcdn: `https://gogocdn.net/embedplus?id=${slug}${dubSuffix}-episode-${episode}`,
+    };
+  };
 
   // Search for anime on Consumet using Jikan title  
   useEffect(() => {
@@ -82,10 +90,12 @@ const StreamPlayer = () => {
       
       // Generate slug for fallback embed URL immediately
       const slug = generateSlug(jikanAnime.title_english || jikanAnime.title);
-      const embedUrls = getEmbedUrls(slug, currentEpisode);
+      const embedUrls = getEmbedUrls(slug, currentEpisode, audioType);
       
-      // Set embed URL immediately as fallback
-      setEmbedUrl(embedUrls.embtaku);
+      // Set embed URL and fallbacks immediately
+      const urlValues = Object.values(embedUrls);
+      setEmbedUrl(urlValues[0]);
+      setFallbackEmbedUrls(urlValues.slice(1));
       
       const searchTerms = [
         jikanAnime.title_english,
@@ -121,7 +131,7 @@ const StreamPlayer = () => {
     };
     
     findAnime();
-  }, [jikanAnime, searchAnime, currentEpisode]);
+  }, [jikanAnime, searchAnime, currentEpisode, audioType]);
 
   // Fetch anime info from Consumet
   useEffect(() => {
@@ -203,6 +213,16 @@ const StreamPlayer = () => {
         parseInt(animeId), 
         currentEpisode, 
         Math.floor(currentTime), 
+        Math.floor(duration)
+      );
+      
+      // Also update watch history
+      addToHistory(
+        parseInt(animeId),
+        displayTitle,
+        jikanAnime?.images?.jpg?.image_url || null,
+        currentEpisode,
+        Math.floor(currentTime),
         Math.floor(duration)
       );
     }
@@ -379,6 +399,7 @@ const StreamPlayer = () => {
         {canPlayEmbed && (
           <EmbedPlayer
             embedUrl={embedUrl}
+            fallbackUrls={fallbackEmbedUrls}
             title={`${displayTitle} - Episode ${currentEpisode}`}
             className="w-full"
           />
@@ -424,6 +445,35 @@ const StreamPlayer = () => {
               <h3 className="font-medium text-sm">Settings</h3>
             </div>
             <div className="p-2 space-y-2">
+              {/* Audio Type - Sub/Dub */}
+              <div>
+                <p className="text-xs text-muted-foreground px-2 mb-1">Audio</p>
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => setAudioType('sub')}
+                    className={cn(
+                      "flex-1 px-2 py-1.5 rounded text-xs transition-colors",
+                      audioType === 'sub'
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-secondary hover:bg-secondary/80"
+                    )}
+                  >
+                    Sub
+                  </button>
+                  <button
+                    onClick={() => setAudioType('dub')}
+                    className={cn(
+                      "flex-1 px-2 py-1.5 rounded text-xs transition-colors",
+                      audioType === 'dub'
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-secondary hover:bg-secondary/80"
+                    )}
+                  >
+                    Dub
+                  </button>
+                </div>
+              </div>
+              
               {/* Player Mode */}
               <div>
                 <p className="text-xs text-muted-foreground px-2 mb-1">Player Mode</p>

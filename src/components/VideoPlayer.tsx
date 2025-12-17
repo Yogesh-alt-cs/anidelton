@@ -536,9 +536,20 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(({
             {subtitle && <p className="text-white/70 text-sm">{subtitle}</p>}
           </div>
 
-          {/* Center Play Button */}
+          {/* Center Controls - Skip Back, Play, Skip Forward */}
           {!isLoading && !error && (
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none gap-8">
+              {/* Skip Back 10s */}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="w-12 h-12 rounded-full bg-white/10 backdrop-blur-sm text-white hover:bg-white/20 pointer-events-auto"
+                onClick={() => skip(-10)}
+              >
+                <SkipBack className="w-6 h-6" />
+              </Button>
+              
+              {/* Play/Pause */}
               <Button
                 variant="ghost"
                 size="icon"
@@ -550,6 +561,16 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(({
                 ) : (
                   <Play className="w-8 h-8 ml-1" />
                 )}
+              </Button>
+              
+              {/* Skip Forward 10s */}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="w-12 h-12 rounded-full bg-white/10 backdrop-blur-sm text-white hover:bg-white/20 pointer-events-auto"
+                onClick={() => skip(10)}
+              >
+                <SkipForward className="w-6 h-6" />
               </Button>
             </div>
           )}

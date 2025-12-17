@@ -215,3 +215,30 @@ export const useRecommendations = (id: number | null) => {
 
   return { data, loading, error };
 };
+
+export const useAnimeByGenre = (genreId: number, limit: number = 24) => {
+  const [data, setData] = useState<Anime[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const result = await rateLimitedFetch(
+          `${BASE_URL}/anime?genres=${genreId}&order_by=popularity&limit=${limit}&sfw=true`
+        );
+        setData(result.data || []);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to fetch anime by genre');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [genreId, limit]);
+
+  return { data, loading, error };
+};

@@ -172,6 +172,45 @@ export type Database = {
           },
         ]
       }
+      watch_history: {
+        Row: {
+          anime_id: number
+          anime_image: string | null
+          anime_title: string
+          completed: boolean
+          duration_seconds: number | null
+          episode_number: number
+          id: string
+          progress_seconds: number
+          user_id: string
+          watched_at: string
+        }
+        Insert: {
+          anime_id: number
+          anime_image?: string | null
+          anime_title: string
+          completed?: boolean
+          duration_seconds?: number | null
+          episode_number: number
+          id?: string
+          progress_seconds?: number
+          user_id: string
+          watched_at?: string
+        }
+        Update: {
+          anime_id?: number
+          anime_image?: string | null
+          anime_title?: string
+          completed?: boolean
+          duration_seconds?: number | null
+          episode_number?: number
+          id?: string
+          progress_seconds?: number
+          user_id?: string
+          watched_at?: string
+        }
+        Relationships: []
+      }
       watch_progress: {
         Row: {
           anime_id: number
