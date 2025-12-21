@@ -203,16 +203,18 @@ export const useAnimeStreaming = () => {
   }, [currentProvider]);
 
   const getEmbedUrl = useCallback((episodeId: string, provider?: StreamingProvider): string => {
+    // Use embed URLs that work with Consumet episode IDs
+    const encodedId = encodeURIComponent(episodeId);
     const providerToUse = provider || currentProvider;
     switch (providerToUse) {
       case 'gogoanime':
-        return `https://gogoanime.tel/streaming.php?id=${episodeId}`;
+        return `https://embtaku.pro/streaming.php?id=${encodedId}`;
       case 'zoro':
-        return `https://zoro.to/watch/${episodeId}`;
+        return `https://rapid-cloud.co/embed-6-v2/e-1/${encodedId}?autoPlay=1&oa=0&asi=1`;
       case '9anime':
-        return `https://9anime.to/watch/${episodeId}`;
+        return `https://vidstream.pro/embed/${encodedId}`;
       default:
-        return '';
+        return `https://embtaku.pro/streaming.php?id=${encodedId}`;
     }
   }, [currentProvider]);
 
