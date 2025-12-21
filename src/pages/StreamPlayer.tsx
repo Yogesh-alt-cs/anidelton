@@ -70,13 +70,20 @@ const StreamPlayer = () => {
   };
 
   // Multiple embed providers for fallback - with sub/dub support
+  // These are reliable pirated streaming sources
   const getEmbedUrls = (slug: string, episode: number, type: 'sub' | 'dub' = 'sub') => {
     const dubSuffix = type === 'dub' ? '-dub' : '';
     return {
-      gogoanime: `https://gogoanime3.co/streaming.php?anime=${slug}${dubSuffix}&episode=${episode}`,
-      gogoanime2: `https://anitaku.pe/streaming.php?id=${slug}${dubSuffix}-episode-${episode}`,
-      embtaku: `https://embtaku.com/streaming.php?id=${slug}${dubSuffix}-episode-${episode}`,
-      vidcdn: `https://gogocdn.net/embedplus?id=${slug}${dubSuffix}-episode-${episode}`,
+      // Primary sources - most reliable
+      anitaku: `https://anitaku.pe/streaming.php?id=${slug}${dubSuffix}-episode-${episode}`,
+      gogoanime: `https://gogoanime3.co/streaming.php?id=${slug}${dubSuffix}-episode-${episode}`,
+      // Alternative sources
+      embtaku: `https://embtaku.pro/streaming.php?id=${slug}${dubSuffix}-episode-${episode}`,
+      gogoplay: `https://gogoplay4.com/streaming.php?id=${slug}${dubSuffix}-episode-${episode}`,
+      vidstream: `https://vidstreaming.io/streaming.php?id=${slug}${dubSuffix}-episode-${episode}`,
+      // Backup sources
+      animefox: `https://animefox.tv/embed/${slug}-episode-${episode}`,
+      zoro: `https://zoro.to/watch/${slug}-episode-${episode}`,
     };
   };
 
