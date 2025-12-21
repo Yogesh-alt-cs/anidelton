@@ -17,6 +17,7 @@ import StreamPlayer from "./pages/StreamPlayer";
 import Settings from "./pages/Settings";
 import Genres from "./pages/Genres";
 import History from "./pages/History";
+import Downloads from "./pages/Downloads";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -43,6 +44,7 @@ function App() {
                 <Route path="/settings" element={<Settings />} />
                 <Route path="/genres" element={<Genres />} />
                 <Route path="/history" element={<History />} />
+                <Route path="/downloads" element={<Downloads />} />
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />
               </Routes>

@@ -4,6 +4,7 @@ import BottomNav from '@/components/BottomNav';
 import FeaturedCarousel from '@/components/FeaturedCarousel';
 import AnimeSection from '@/components/AnimeSection';
 import AnimeRecommendations from '@/components/AnimeRecommendations';
+import ContinueWatching from '@/components/ContinueWatching';
 import { useAuth } from '@/contexts/AuthContext';
 
 const Index = () => {
@@ -27,14 +28,8 @@ const Index = () => {
           loading={loadingSeasonal}
         />
 
-        {/* Continue Watching - Mock data for now */}
-        <AnimeSection
-          title="Continue Watching"
-          animes={topAiring.slice(0, 6)}
-          loading={loadingAiring}
-          cardSize="md"
-          showProgress
-        />
+        {/* Continue Watching - Real data from history */}
+        {user && <ContinueWatching limit={10} />}
 
         {/* Personalized Recommendations */}
         {user && (
