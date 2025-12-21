@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
+import ErrorBoundary from "./components/ErrorBoundary";
 import Index from "./pages/Index";
 import Search from "./pages/Search";
 import AnimeDetails from "./pages/AnimeDetails";
@@ -24,33 +25,35 @@ const queryClient = new QueryClient();
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <AuthProvider>
-          <TooltipProvider>
-            <Toaster />
-            <Sonner />
-            <Routes>
-              <Route path="/" element={<Index />} />
-              <Route path="/search" element={<Search />} />
-              <Route path="/anime/:id" element={<AnimeDetails />} />
-              <Route path="/watchlist" element={<Watchlist />} />
-              <Route path="/profile" element={<Profile />} />
-              <Route path="/notifications" element={<Notifications />} />
-              <Route path="/auth" element={<Auth />} />
-              <Route path="/watch/:animeId" element={<Watch />} />
-              <Route path="/stream/:animeId" element={<StreamPlayer />} />
-              <Route path="/settings" element={<Settings />} />
-              <Route path="/genres" element={<Genres />} />
-              <Route path="/history" element={<History />} />
-              <Route path="/downloads" element={<Downloads />} />
-              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </TooltipProvider>
-        </AuthProvider>
-      </BrowserRouter>
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <BrowserRouter>
+          <AuthProvider>
+            <TooltipProvider>
+              <Toaster />
+              <Sonner />
+              <Routes>
+                <Route path="/" element={<Index />} />
+                <Route path="/search" element={<Search />} />
+                <Route path="/anime/:id" element={<AnimeDetails />} />
+                <Route path="/watchlist" element={<Watchlist />} />
+                <Route path="/profile" element={<Profile />} />
+                <Route path="/notifications" element={<Notifications />} />
+                <Route path="/auth" element={<Auth />} />
+                <Route path="/watch/:animeId" element={<Watch />} />
+                <Route path="/stream/:animeId" element={<StreamPlayer />} />
+                <Route path="/settings" element={<Settings />} />
+                <Route path="/genres" element={<Genres />} />
+                <Route path="/history" element={<History />} />
+                <Route path="/downloads" element={<Downloads />} />
+                {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </TooltipProvider>
+          </AuthProvider>
+        </BrowserRouter>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 }
 
