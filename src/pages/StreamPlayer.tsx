@@ -69,18 +69,19 @@ const StreamPlayer = () => {
       .trim();
   };
 
-  // Ad-free embed sources - prioritize clean players like Crunchyroll-style
+  // Ad-free embed sources - reliable streaming players
   const getEmbedUrls = (slug: string, episode: number, type: 'sub' | 'dub' = 'sub') => {
     const dubSuffix = type === 'dub' ? '-dub' : '';
+    const cleanSlug = slug.replace(/[^a-z0-9-]/g, '');
     return {
-      // Primary - cleaner players with minimal/no ads
-      plyr: `https://plyr.link/p/player.html?id=${slug}${dubSuffix}-episode-${episode}`,
-      vidcdn: `https://vidcdn.pro/e/${slug}${dubSuffix}-episode-${episode}`,
-      sbplay: `https://sbplay2.xyz/e/${slug}${dubSuffix}-episode-${episode}.html`,
-      // Direct video embeds (ad-free)
-      filemoon: `https://filemoon.sx/e/${slug}${dubSuffix}-episode-${episode}`,
-      streamwish: `https://streamwish.to/e/${slug}${dubSuffix}-episode-${episode}`,
-      mp4upload: `https://mp4upload.com/embed-${slug}${dubSuffix}-episode-${episode}.html`,
+      // Primary - Consumet-compatible embeds (most reliable)
+      gogoEmbed: `https://gogoanime.gg/streaming.php?id=${cleanSlug}${dubSuffix}-episode-${episode}`,
+      gogoEmbed2: `https://embtaku.pro/streaming.php?id=${cleanSlug}${dubSuffix}-episode-${episode}`,
+      // Direct video hosting (ad-free)
+      vidstreaming: `https://vidstreaming.io/streaming.php?id=${cleanSlug}${dubSuffix}-episode-${episode}`,
+      goload: `https://goload.io/streaming.php?id=${cleanSlug}${dubSuffix}-episode-${episode}`,
+      // Backup embeds
+      sbembed: `https://sbembed.com/e/${cleanSlug}${dubSuffix}-episode-${episode}.html`,
     };
   };
 
