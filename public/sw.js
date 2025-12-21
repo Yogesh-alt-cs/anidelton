@@ -1,6 +1,10 @@
 // Service Worker for AniDel
-const CACHE_NAME = 'anidel-v1';
-const STATIC_CACHE = 'anidel-static-v1';
+// NOTE: We intentionally avoid cache-first for JS/CSS to prevent mixed React/ReactDOM bundles
+// which can cause "Invalid hook call" / dispatcher null errors.
+
+const CACHE_VERSION = 'v2';
+const CACHE_NAME = `anidel-${CACHE_VERSION}`;
+const STATIC_CACHE = `anidel-static-${CACHE_VERSION}`;
 
 // Assets to cache on install
 const STATIC_ASSETS = [
@@ -11,7 +15,6 @@ const STATIC_ASSETS = [
 
 // Install event - cache static assets
 self.addEventListener('install', (event) => {
-  console.log('Service Worker installing...');
   event.waitUntil(
     caches.open(STATIC_CACHE)
       .then((cache) => cache.addAll(STATIC_ASSETS))
@@ -21,7 +24,6 @@ self.addEventListener('install', (event) => {
 
 // Activate event - clean up old caches
 self.addEventListener('activate', (event) => {
-  console.log('Service Worker activating...');
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
@@ -33,7 +35,33 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Fetch event - network first with cache fallback
+const cachePutIfOk = async (cacheName, request, response) => {
+  if (!response || !response.ok) return;
+  const cache = await caches.open(cacheName);
+  await cache.put(request, response.clone());
+};
+
+const networkFirst = async (request, cacheName) => {
+  try {
+    const response = await fetch(request);
+    await cachePutIfOk(cacheName, request, response);
+    return response;
+  } catch {
+    const cached = await caches.match(request);
+    if (cached) return cached;
+    throw new Error('Network failed and no cache');
+  }
+};
+
+const cacheFirst = async (request, cacheName) => {
+  const cached = await caches.match(request);
+  if (cached) return cached;
+  const response = await fetch(request);
+  await cachePutIfOk(cacheName, request, response);
+  return response;
+};
+
+// Fetch event
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
@@ -44,33 +72,27 @@ self.addEventListener('fetch', (event) => {
   // Skip external requests
   if (url.origin !== self.location.origin) return;
 
-  // Cache-first for static assets
-  if (request.destination === 'image' || 
-      request.destination === 'style' || 
-      request.destination === 'script' ||
-      request.destination === 'font') {
-    event.respondWith(
-      caches.match(request).then((cached) => {
-        if (cached) return cached;
-        return fetch(request).then((response) => {
-          if (response.ok) {
-            const clone = response.clone();
-            caches.open(STATIC_CACHE).then((cache) => cache.put(request, clone));
-          }
-          return response;
-        });
-      })
-    );
+  // Always network-first for JS/CSS to avoid stale runtime/deps mismatch
+  if (request.destination === 'script' || request.destination === 'style') {
+    event.respondWith(networkFirst(request, STATIC_CACHE));
     return;
   }
 
-  // Network first for HTML and API
+  // Cache-first for media/static assets that are safe to cache
+  if (
+    request.destination === 'image' ||
+    request.destination === 'font'
+  ) {
+    event.respondWith(cacheFirst(request, STATIC_CACHE));
+    return;
+  }
+
+  // Network first for documents and everything else
   event.respondWith(
     fetch(request)
       .then((response) => {
         if (response.ok && request.destination === 'document') {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+          void cachePutIfOk(CACHE_NAME, request, response);
         }
         return response;
       })

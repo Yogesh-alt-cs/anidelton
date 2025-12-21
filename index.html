@@ -30,16 +30,31 @@
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
     <script>
-      // Register service worker
+      // Register service worker (avoid caching SW + auto-reload on update)
       if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js')
-            .then((registration) => {
-              console.log('SW registered:', registration.scope);
-            })
-            .catch((error) => {
-              console.log('SW registration failed:', error);
+        window.addEventListener('load', async () => {
+          try {
+            const registration = await navigator.serviceWorker.register('/sw.js', {
+              updateViaCache: 'none'
             });
+
+            // Proactively check for updates
+            registration.update?.();
+
+            registration.addEventListener('updatefound', () => {
+              const installing = registration.installing;
+              if (!installing) return;
+
+              installing.addEventListener('statechange', () => {
+                // New SW installed; reload to get consistent bundles
+                if (installing.state === 'installed' && navigator.serviceWorker.controller) {
+                  window.location.reload();
+                }
+              });
+            });
+          } catch (error) {
+            console.log('SW registration failed:', error);
+          }
         });
       }
     </script>
