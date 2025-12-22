@@ -69,19 +69,23 @@ const StreamPlayer = () => {
       .trim();
   };
 
-  // Ad-free embed sources - reliable streaming players
+  // Primary video sources - Vidwish and Megaplay with HLS support
   const getEmbedUrls = (slug: string, episode: number, type: 'sub' | 'dub' = 'sub') => {
     const dubSuffix = type === 'dub' ? '-dub' : '';
     const cleanSlug = slug.replace(/[^a-z0-9-]/g, '');
+    const episodeId = `${cleanSlug}${dubSuffix}-episode-${episode}`;
     return {
-      // Primary - Consumet-compatible embeds (most reliable)
-      gogoEmbed: `https://gogoanime.gg/streaming.php?id=${cleanSlug}${dubSuffix}-episode-${episode}`,
-      gogoEmbed2: `https://embtaku.pro/streaming.php?id=${cleanSlug}${dubSuffix}-episode-${episode}`,
-      // Direct video hosting (ad-free)
-      vidstreaming: `https://vidstreaming.io/streaming.php?id=${cleanSlug}${dubSuffix}-episode-${episode}`,
-      goload: `https://goload.io/streaming.php?id=${cleanSlug}${dubSuffix}-episode-${episode}`,
-      // Backup embeds
-      sbembed: `https://sbembed.com/e/${cleanSlug}${dubSuffix}-episode-${episode}.html`,
+      // Primary - Vidwish (Streamwish) HLS player
+      vidwish: `https://streamwish.to/e/${episodeId}`,
+      vidwish2: `https://swdyu.com/e/${episodeId}`,
+      // Megaplay sources
+      megaplay: `https://megacloud.tv/embed-2/e-1/${episodeId}?autoPlay=1`,
+      megaplay2: `https://megacloud.club/embed/${episodeId}`,
+      // Backup HLS-compatible sources
+      filemoon: `https://filemoon.sx/e/${episodeId}`,
+      doodstream: `https://doodstream.com/e/${episodeId}`,
+      // Fallback embeds
+      embtaku: `https://embtaku.pro/streaming.php?id=${episodeId}`,
     };
   };
 
