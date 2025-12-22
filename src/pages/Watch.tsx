@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import Hls from 'hls.js';
 import { 
   ArrowLeft, 
   Settings, 
@@ -11,9 +12,9 @@ import {
   SkipForward,
   Volume2,
   VolumeX,
-  Subtitles,
   ChevronDown,
-  Loader2
+  Loader2,
+  RefreshCw
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
@@ -21,6 +22,14 @@ import { cn } from '@/lib/utils';
 import { useAnimeStreaming } from '@/hooks/useAnimeStreaming';
 import { useWatchProgress } from '@/hooks/useWatchProgress';
 import { useAuth } from '@/contexts/AuthContext';
+
+const CONSUMET_API = 'https://api.consumet.org/anime/gogoanime';
+
+interface StreamSource {
+  url: string;
+  quality: string;
+  isM3U8: boolean;
+}
 
 const Watch = () => {
   const { animeId } = useParams();
@@ -33,6 +42,7 @@ const Watch = () => {
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const hlsRef = useRef<Hls | null>(null);
   
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -44,60 +54,136 @@ const Watch = () => {
   const [showSettings, setShowSettings] = useState(false);
   const [showEpisodes, setShowEpisodes] = useState(false);
   const [selectedQuality, setSelectedQuality] = useState('auto');
+  const [isLoading, setIsLoading] = useState(true);
+  const [streamError, setStreamError] = useState<string | null>(null);
   
-  const { getAnimeInfo, getEpisodeSources, loading, error } = useAnimeStreaming();
+  const { getAnimeInfo, loading, error } = useAnimeStreaming();
   const { updateProgress, getEpisodeProgress } = useWatchProgress(animeId ? parseInt(animeId) : undefined);
   
   const [animeInfo, setAnimeInfo] = useState<any>(null);
-  const [sources, setSources] = useState<any>(null);
+  const [sources, setSources] = useState<StreamSource[]>([]);
   const [streamUrl, setStreamUrl] = useState<string>('');
 
   // Fetch anime info
   useEffect(() => {
     const fetchInfo = async () => {
       if (!animeId) return;
-      
-      // Convert MAL ID to gogoanime ID (simplified - in production you'd need a mapping)
       const searchQuery = animeId;
       const info = await getAnimeInfo(searchQuery);
       if (info) {
         setAnimeInfo(info);
       }
     };
-    
     fetchInfo();
   }, [animeId, getAnimeInfo]);
 
-  // Fetch episode sources
-  useEffect(() => {
-    const fetchSources = async () => {
-      if (!animeInfo?.episodes?.length) return;
+  // Fetch streaming sources from Consumet API
+  const fetchStreamingSources = useCallback(async (episodeId: string) => {
+    setIsLoading(true);
+    setStreamError(null);
+    
+    try {
+      const response = await fetch(`${CONSUMET_API}/watch/${encodeURIComponent(episodeId)}`);
+      if (!response.ok) throw new Error('Failed to fetch sources');
       
-      const episode = animeInfo.episodes.find((ep: any) => ep.number === currentEpisode);
-      if (!episode) return;
+      const data = await response.json();
       
-      const sourcesData = await getEpisodeSources(episode.id);
-      if (sourcesData) {
-        setSources(sourcesData);
+      if (data.sources && data.sources.length > 0) {
+        setSources(data.sources);
         
-        // Select best quality source
-        const qualityOrder = ['1080p', '720p', '480p', '360p', 'default', 'backup'];
-        const sortedSources = sourcesData.sources.sort((a: any, b: any) => {
-          const aIndex = qualityOrder.findIndex(q => a.quality?.toLowerCase().includes(q));
-          const bIndex = qualityOrder.findIndex(q => b.quality?.toLowerCase().includes(q));
-          return (aIndex === -1 ? 999 : aIndex) - (bIndex === -1 ? 999 : bIndex);
-        });
-        
-        if (sortedSources.length > 0) {
-          setStreamUrl(sortedSources[0].url);
+        // Select best quality M3U8 source
+        const m3u8Source = data.sources.find((s: StreamSource) => s.isM3U8);
+        if (m3u8Source) {
+          setStreamUrl(m3u8Source.url);
+        } else {
+          setStreamUrl(data.sources[0].url);
         }
+      } else {
+        setStreamError('No streaming sources found');
+      }
+    } catch (err) {
+      console.error('Error fetching sources:', err);
+      setStreamError('Failed to load streaming sources');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  // Fetch episode sources when anime info or episode changes
+  useEffect(() => {
+    if (!animeInfo?.episodes?.length) return;
+    
+    const episode = animeInfo.episodes.find((ep: any) => ep.number === currentEpisode);
+    if (episode) {
+      fetchStreamingSources(episode.id);
+    }
+  }, [animeInfo, currentEpisode, fetchStreamingSources]);
+
+  // Initialize HLS player when stream URL changes
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !streamUrl) return;
+
+    // Cleanup previous HLS instance
+    if (hlsRef.current) {
+      hlsRef.current.destroy();
+      hlsRef.current = null;
+    }
+
+    const isHLS = streamUrl.includes('.m3u8');
+
+    if (isHLS && Hls.isSupported()) {
+      const hls = new Hls({
+        enableWorker: true,
+        lowLatencyMode: true,
+      });
+
+      hls.loadSource(streamUrl);
+      hls.attachMedia(video);
+
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        setIsLoading(false);
+        video.play().catch(console.error);
+      });
+
+      hls.on(Hls.Events.ERROR, (_, data) => {
+        if (data.fatal) {
+          switch (data.type) {
+            case Hls.ErrorTypes.NETWORK_ERROR:
+              console.error('HLS network error, trying to recover...');
+              hls.startLoad();
+              break;
+            case Hls.ErrorTypes.MEDIA_ERROR:
+              console.error('HLS media error, trying to recover...');
+              hls.recoverMediaError();
+              break;
+            default:
+              setStreamError('Failed to load video stream');
+              hls.destroy();
+              break;
+          }
+        }
+      });
+
+      hlsRef.current = hls;
+    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      // Safari native HLS support
+      video.src = streamUrl;
+      video.play().catch(console.error);
+    } else {
+      // Direct video source (non-HLS)
+      video.src = streamUrl;
+      video.play().catch(console.error);
+    }
+
+    return () => {
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+        hlsRef.current = null;
       }
     };
-    
-    fetchSources();
-  }, [animeInfo, currentEpisode, getEpisodeSources]);
+  }, [streamUrl]);
 
-  // Restore progress
   useEffect(() => {
     if (animeId && user) {
       const progress = getEpisodeProgress(currentEpisode);
@@ -242,31 +328,46 @@ const Watch = () => {
     >
       {/* Video Player */}
       <div className="relative w-full h-screen flex items-center justify-center">
-        {loading && !streamUrl && (
+        {(loading || isLoading) && !streamUrl && (
           <div className="absolute inset-0 flex items-center justify-center bg-background">
             <Loader2 className="w-12 h-12 animate-spin text-primary" />
           </div>
         )}
         
-        {error && (
+        {(error || streamError) && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-background">
-            <p className="text-destructive mb-4">{error}</p>
-            <Button onClick={() => navigate(-1)}>Go Back</Button>
+            <p className="text-destructive mb-4">{error || streamError}</p>
+            <div className="flex gap-2">
+              <Button onClick={() => navigate(-1)}>Go Back</Button>
+              {animeInfo?.episodes?.length && (
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    const episode = animeInfo.episodes.find((ep: any) => ep.number === currentEpisode);
+                    if (episode) fetchStreamingSources(episode.id);
+                  }}
+                >
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Retry
+                </Button>
+              )}
+            </div>
           </div>
         )}
         
-        {streamUrl && (
-          <video
-            ref={videoRef}
-            src={streamUrl}
-            className="w-full h-full object-contain"
-            onTimeUpdate={handleTimeUpdate}
-            onLoadedMetadata={handleLoadedMetadata}
-            onPlay={() => setIsPlaying(true)}
-            onPause={() => setIsPlaying(false)}
-            onClick={togglePlay}
-          />
-        )}
+        <video
+          ref={videoRef}
+          className="w-full h-full object-contain"
+          onTimeUpdate={handleTimeUpdate}
+          onLoadedMetadata={handleLoadedMetadata}
+          onPlay={() => setIsPlaying(true)}
+          onPause={() => setIsPlaying(false)}
+          onWaiting={() => setIsLoading(true)}
+          onCanPlay={() => setIsLoading(false)}
+          onClick={togglePlay}
+          autoPlay
+          playsInline
+        />
         
         {/* Overlay Controls */}
         <div 
@@ -402,7 +503,7 @@ const Watch = () => {
           <div className="absolute top-16 right-4 w-64 bg-card/95 backdrop-blur-sm rounded-xl p-4 space-y-4 z-50">
             <h3 className="font-medium">Quality</h3>
             <div className="space-y-2">
-              {sources?.sources?.map((source: any, index: number) => (
+              {sources?.map((source: StreamSource, index: number) => (
                 <button
                   key={index}
                   onClick={() => {
