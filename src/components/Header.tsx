@@ -2,6 +2,7 @@ import { Search, Bell } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useNotifications } from '@/hooks/useNotifications';
+import appIcon from '@/assets/app-icon.png';
 
 interface HeaderProps {
   showSearch?: boolean;
@@ -15,9 +16,13 @@ const Header = ({ showSearch = true, showNotifications = true }: HeaderProps) =>
     <header className="fixed top-0 left-0 right-0 z-50 glass">
       <div className="flex items-center justify-between px-4 py-3 max-w-7xl mx-auto">
         <Link to="/" className="flex items-center gap-2">
-          <div className="relative w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg shadow-primary/25">
-            <span className="text-xl font-bold text-primary-foreground">A</span>
-            <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-primary to-accent opacity-50 blur-lg -z-10" />
+          <div className="relative w-10 h-10 rounded-xl overflow-hidden shadow-lg shadow-primary/25">
+            <img 
+              src={appIcon} 
+              alt="AniDel" 
+              className="w-full h-full object-cover"
+            />
+            <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-primary/20 to-accent/20 opacity-50 blur-lg -z-10" />
           </div>
           <span className="text-xl font-inter font-bold gradient-text">AniDel</span>
         </Link>

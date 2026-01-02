@@ -118,25 +118,31 @@ export type Database = {
       }
       profiles: {
         Row: {
+          avatar_type: string | null
           avatar_url: string | null
           created_at: string
           id: string
+          selected_avatar_id: string | null
           updated_at: string
           user_id: string
           username: string | null
         }
         Insert: {
+          avatar_type?: string | null
           avatar_url?: string | null
           created_at?: string
           id?: string
+          selected_avatar_id?: string | null
           updated_at?: string
           user_id: string
           username?: string | null
         }
         Update: {
+          avatar_type?: string | null
           avatar_url?: string | null
           created_at?: string
           id?: string
+          selected_avatar_id?: string | null
           updated_at?: string
           user_id?: string
           username?: string | null

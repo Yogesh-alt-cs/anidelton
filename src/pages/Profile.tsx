@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { 
   Settings, ChevronRight, Eye, CheckCircle, Clock, Heart,
@@ -9,12 +10,23 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useWatchlist } from '@/hooks/useWatchlist';
 import { useWatchProgress } from '@/hooks/useWatchProgress';
+import { useProfile } from '@/hooks/useProfile';
+import ProfileAvatarPicker from '@/components/ProfileAvatarPicker';
+import appIcon from '@/assets/app-icon.png';
 
 const Profile = () => {
   const navigate = useNavigate();
   const { user, signOut, loading: authLoading } = useAuth();
   const { watchlist, loading: watchlistLoading } = useWatchlist();
   const { progress } = useWatchProgress();
+  const { profile, loading: profileLoading, refetch: refetchProfile } = useProfile();
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (profile?.avatar_url) {
+      setAvatarUrl(profile.avatar_url);
+    }
+  }, [profile]);
 
   // Redirect to auth if not logged in
   if (!authLoading && !user) {
@@ -23,8 +35,8 @@ const Profile = () => {
         <Header showSearch={false} showNotifications={false} />
         <main className="pt-20 px-4 flex flex-col items-center justify-center min-h-[60vh]">
           <div className="text-center space-y-4">
-            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center mx-auto text-3xl font-bold text-primary-foreground">
-              ?
+            <div className="w-20 h-20 rounded-full overflow-hidden mx-auto shadow-lg">
+              <img src={appIcon} alt="AniDel" className="w-full h-full object-cover" />
             </div>
             <h2 className="text-xl font-bold">Sign in to view your profile</h2>
             <p className="text-muted-foreground text-sm">Track your anime, save your watchlist, and more</p>
@@ -38,7 +50,7 @@ const Profile = () => {
     );
   }
 
-  if (authLoading || watchlistLoading) {
+  if (authLoading || watchlistLoading || profileLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -75,7 +87,12 @@ const Profile = () => {
     navigate('/');
   };
 
-  const username = user?.user_metadata?.username || user?.email?.split('@')[0] || 'User';
+  const handleAvatarChange = (url: string) => {
+    setAvatarUrl(url);
+    refetchProfile();
+  };
+
+  const username = profile?.username || user?.user_metadata?.username || user?.email?.split('@')[0] || 'User';
 
   return (
     <div className="min-h-screen bg-background pb-24">
@@ -84,12 +101,11 @@ const Profile = () => {
       <main className="pt-20 px-4 space-y-6 max-w-lg mx-auto">
         {/* Profile Header */}
         <div className="flex items-center gap-4">
-          <div className="relative">
-            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center text-3xl font-bold text-primary-foreground shadow-lg shadow-primary/25">
-              {username.charAt(0).toUpperCase()}
-            </div>
-            <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-green-500 border-2 border-background" />
-          </div>
+          <ProfileAvatarPicker 
+            currentAvatar={avatarUrl}
+            username={username}
+            onAvatarChange={handleAvatarChange}
+          />
           <div className="flex-1">
             <h1 className="text-xl font-inter font-bold">{username}</h1>
             <p className="text-sm text-muted-foreground">{user?.email}</p>
