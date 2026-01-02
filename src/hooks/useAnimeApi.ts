@@ -77,6 +77,56 @@ export const useSeasonalAnime = (limit = 10) => {
   return { data, loading, error };
 };
 
+export const useTopMovies = (limit = 10) => {
+  const [data, setData] = useState<Anime[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchTopMovies = async () => {
+      try {
+        setLoading(true);
+        const result = await rateLimitedFetch(`${BASE_URL}/top/anime?type=movie&limit=${limit}`);
+        setData(result.data);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to fetch movies');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchTopMovies();
+  }, [limit]);
+
+  return { data, loading, error };
+};
+
+export const useTopTV = (limit = 10) => {
+  const [data, setData] = useState<Anime[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchTopTV = async () => {
+      try {
+        setLoading(true);
+        const result = await rateLimitedFetch(`${BASE_URL}/top/anime?type=tv&limit=${limit}`);
+        setData(result.data);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to fetch TV series');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchTopTV();
+  }, [limit]);
+
+  return { data, loading, error };
+};
+
 export const useAnimeSearch = (query: string, genres?: number[], page = 1) => {
   const [data, setData] = useState<Anime[]>([]);
   const [loading, setLoading] = useState(false);
@@ -239,6 +289,32 @@ export const useAnimeByGenre = (genreId: number, limit: number = 24) => {
 
     fetchData();
   }, [genreId, limit]);
+
+  return { data, loading, error };
+};
+
+export const useNewReleases = (limit = 10) => {
+  const [data, setData] = useState<Anime[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchNewReleases = async () => {
+      try {
+        setLoading(true);
+        // Get recently aired anime sorted by score
+        const result = await rateLimitedFetch(`${BASE_URL}/seasons/now?filter=tv&limit=${limit}&order_by=start_date&sort=desc`);
+        setData(result.data);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to fetch new releases');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchNewReleases();
+  }, [limit]);
 
   return { data, loading, error };
 };
