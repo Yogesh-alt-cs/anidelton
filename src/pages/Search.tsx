@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAnimeSearch, useTopAnime } from '@/hooks/useAnimeApi';
 import { useAnimeStreaming } from '@/hooks/useAnimeStreaming';
 import { GENRES } from '@/types/anime';
@@ -9,7 +9,8 @@ import SearchInput from '@/components/SearchInput';
 import GenreChip from '@/components/GenreChip';
 import AnimeCard from '@/components/AnimeCard';
 import { Button } from '@/components/ui/button';
-import { Sparkles, TrendingUp, Clock, Star, Play, Film, Loader2 } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Sparkles, TrendingUp, Clock, Star, Play, Film, Loader2, Filter, X, Tv, Clapperboard, Building2, Calendar } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 type SearchMode = 'info' | 'stream';
@@ -22,17 +23,75 @@ interface StreamResult {
   subOrDub?: string;
 }
 
+// Studios for filter
+const STUDIOS = [
+  { id: 'all', name: 'All Studios' },
+  { id: '21', name: 'Studio Ghibli' },
+  { id: '11', name: 'Madhouse' },
+  { id: '7', name: 'J.C.Staff' },
+  { id: '1', name: 'Pierrot' },
+  { id: '2', name: 'Kyoto Animation' },
+  { id: '4', name: 'Bones' },
+  { id: '43', name: 'ufotable' },
+  { id: '44', name: 'Shaft' },
+  { id: '569', name: 'MAPPA' },
+  { id: '858', name: 'Wit Studio' },
+];
+
+// Years for filter (last 30 years)
+const currentYear = new Date().getFullYear();
+const YEARS = [
+  { id: 'all', name: 'All Years' },
+  ...Array.from({ length: 30 }, (_, i) => ({
+    id: String(currentYear - i),
+    name: String(currentYear - i),
+  }))
+];
+
 const Search = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  
   const [query, setQuery] = useState('');
   const [selectedGenres, setSelectedGenres] = useState<number[]>([]);
   const [searchMode, setSearchMode] = useState<SearchMode>('info');
   const [streamResults, setStreamResults] = useState<StreamResult[]>([]);
   const [streamLoading, setStreamLoading] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
+  
+  // Advanced filters
+  const [typeFilter, setTypeFilter] = useState<string>(searchParams.get('type') || 'all');
+  const [yearFilter, setYearFilter] = useState<string>('all');
+  const [studioFilter, setStudioFilter] = useState<string>('all');
   
   const { data: searchResults, loading: searchLoading } = useAnimeSearch(query, selectedGenres);
   const { data: trendingAnime, loading: trendingLoading } = useTopAnime('bypopularity', 20);
   const { searchAnime } = useAnimeStreaming();
+
+  // Apply filters to results
+  const filteredResults = (query || selectedGenres.length > 0 ? searchResults : trendingAnime).filter((anime) => {
+    // Type filter
+    if (typeFilter !== 'all') {
+      const animeType = anime.type?.toLowerCase();
+      if (typeFilter === 'tv' && animeType !== 'tv') return false;
+      if (typeFilter === 'movie' && animeType !== 'movie') return false;
+      if (typeFilter === 'ova' && !['ova', 'ona', 'special'].includes(animeType || '')) return false;
+    }
+    
+    // Year filter
+    if (yearFilter !== 'all') {
+      const animeYear = anime.year || (anime.aired?.from ? new Date(anime.aired.from).getFullYear() : null);
+      if (animeYear !== parseInt(yearFilter)) return false;
+    }
+    
+    // Studio filter
+    if (studioFilter !== 'all') {
+      const hasStudio = anime.studios?.some(s => String(s.mal_id) === studioFilter);
+      if (!hasStudio) return false;
+    }
+    
+    return true;
+  });
 
   const toggleGenre = (genreId: number) => {
     setSelectedGenres(prev => 
@@ -68,8 +127,18 @@ const Search = () => {
     navigate(`/stream/${animeId}`);
   };
 
+  const clearFilters = () => {
+    setTypeFilter('all');
+    setYearFilter('all');
+    setStudioFilter('all');
+    setSelectedGenres([]);
+  };
+
+  const hasActiveFilters = typeFilter !== 'all' || yearFilter !== 'all' || studioFilter !== 'all' || selectedGenres.length > 0;
+  const activeFilterCount = (typeFilter !== 'all' ? 1 : 0) + (yearFilter !== 'all' ? 1 : 0) + (studioFilter !== 'all' ? 1 : 0) + selectedGenres.length;
+
   const showResults = query || selectedGenres.length > 0;
-  const displayAnimes = showResults ? searchResults : trendingAnime;
+  const displayAnimes = filteredResults;
   const isLoading = searchMode === 'stream' ? streamLoading : (showResults ? searchLoading : trendingLoading);
 
   const quickFilters = [
@@ -92,8 +161,8 @@ const Search = () => {
           autoFocus
         />
 
-        {/* Search Mode Toggle */}
-        <div className="flex gap-2">
+        {/* Search Mode Toggle & Filters Button */}
+        <div className="flex flex-wrap gap-2">
           <Button
             variant={searchMode === 'info' ? 'gradient' : 'outline'}
             size="sm"
@@ -112,10 +181,131 @@ const Search = () => {
             <Play className="w-4 h-4" />
             Stream
           </Button>
+          
+          {searchMode === 'info' && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowFilters(!showFilters)}
+              className={cn("gap-2 ml-auto", hasActiveFilters && "border-primary text-primary")}
+            >
+              <Filter className="w-4 h-4" />
+              Filters
+              {activeFilterCount > 0 && (
+                <span className="ml-1 px-1.5 py-0.5 bg-primary text-primary-foreground rounded-full text-xs">
+                  {activeFilterCount}
+                </span>
+              )}
+            </Button>
+          )}
         </div>
 
-        {/* Quick Filters - only show for info mode */}
-        {searchMode === 'info' && (
+        {/* Advanced Filters Panel */}
+        {showFilters && searchMode === 'info' && (
+          <div className="bg-card rounded-xl p-4 space-y-4 border border-border animate-fade-in">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold flex items-center gap-2">
+                <Filter className="w-4 h-4" />
+                Advanced Filters
+              </h3>
+              {hasActiveFilters && (
+                <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-1">
+                  <X className="w-4 h-4" />
+                  Clear All
+                </Button>
+              )}
+            </div>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {/* Type Filter */}
+              <div className="space-y-2">
+                <label className="text-sm text-muted-foreground flex items-center gap-2">
+                  <Tv className="w-4 h-4" />
+                  Type
+                </label>
+                <Select value={typeFilter} onValueChange={setTypeFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="All Types" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Types</SelectItem>
+                    <SelectItem value="tv">
+                      <div className="flex items-center gap-2">
+                        <Tv className="w-4 h-4" />
+                        TV Series
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="movie">
+                      <div className="flex items-center gap-2">
+                        <Clapperboard className="w-4 h-4" />
+                        Movies
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="ova">OVA/ONA/Special</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Year Filter */}
+              <div className="space-y-2">
+                <label className="text-sm text-muted-foreground flex items-center gap-2">
+                  <Calendar className="w-4 h-4" />
+                  Year
+                </label>
+                <Select value={yearFilter} onValueChange={setYearFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="All Years" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {YEARS.map(year => (
+                      <SelectItem key={year.id} value={year.id}>
+                        {year.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Studio Filter */}
+              <div className="space-y-2">
+                <label className="text-sm text-muted-foreground flex items-center gap-2">
+                  <Building2 className="w-4 h-4" />
+                  Studio
+                </label>
+                <Select value={studioFilter} onValueChange={setStudioFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="All Studios" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {STUDIOS.map(studio => (
+                      <SelectItem key={studio.id} value={studio.id}>
+                        {studio.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Genre Chips in Filter Panel */}
+            <div className="space-y-2">
+              <label className="text-sm text-muted-foreground">Genres</label>
+              <div className="flex flex-wrap gap-2">
+                {GENRES.map((genre) => (
+                  <GenreChip
+                    key={genre.mal_id}
+                    name={genre.name}
+                    isSelected={selectedGenres.includes(genre.mal_id)}
+                    onClick={() => toggleGenre(genre.mal_id)}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Quick Filters - only show for info mode when filter panel is closed */}
+        {searchMode === 'info' && !showFilters && (
           <div className="flex gap-2 overflow-x-auto scroll-hidden -mx-4 px-4 pb-2">
             {quickFilters.map((filter) => (
               <GenreChip
@@ -127,8 +317,8 @@ const Search = () => {
           </div>
         )}
 
-        {/* Genre Filters - only show for info mode */}
-        {searchMode === 'info' && (
+        {/* Genre Filters - only show for info mode when filter panel is closed */}
+        {searchMode === 'info' && !showFilters && (
           <div>
             <h3 className="text-sm font-medium text-muted-foreground mb-3">Genres</h3>
             <div className="flex flex-wrap gap-2">
@@ -158,7 +348,7 @@ const Search = () => {
           <h3 className="text-lg font-inter font-bold mb-4">
             {searchMode === 'stream' 
               ? (query ? 'Streaming Results' : 'Search to stream') 
-              : (showResults ? 'Search Results' : 'Popular Anime')
+              : (showResults ? `Search Results${hasActiveFilters ? ` (${displayAnimes.length} found)` : ''}` : 'Popular Anime')
             }
           </h3>
           
