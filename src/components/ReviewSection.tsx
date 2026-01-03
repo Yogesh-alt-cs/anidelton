@@ -246,18 +246,26 @@ const ReviewSection = ({ animeId, animeTitle }: ReviewSectionProps) => {
             <StarRating rating={rating} onRatingChange={setRating} />
           </div>
           
-          <Input
-            placeholder="Review title (optional)"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-          />
+          <div>
+            <Input
+              placeholder="Review title (optional)"
+              value={title}
+              onChange={(e) => setTitle(e.target.value.slice(0, 200))}
+              maxLength={200}
+            />
+            <span className="text-xs text-muted-foreground mt-1">{title.length}/200</span>
+          </div>
           
-          <Textarea
-            placeholder="Share your thoughts about this anime..."
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            rows={4}
-          />
+          <div>
+            <Textarea
+              placeholder="Share your thoughts about this anime..."
+              value={content}
+              onChange={(e) => setContent(e.target.value.slice(0, 5000))}
+              maxLength={5000}
+              rows={4}
+            />
+            <span className="text-xs text-muted-foreground mt-1">{content.length}/5000</span>
+          </div>
           
           <div className="flex items-center gap-2">
             <Switch
