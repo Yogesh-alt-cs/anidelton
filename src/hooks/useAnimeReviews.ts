@@ -178,27 +178,17 @@ export const useAnimeReviews = (animeId: number | null) => {
 
     try {
       if (review.user_liked) {
-        // Remove like
+        // Remove like - trigger automatically updates likes_count
         await supabase
           .from('review_likes')
           .delete()
           .eq('user_id', user.id)
           .eq('review_id', reviewId);
-
-        await supabase
-          .from('anime_reviews')
-          .update({ likes_count: Math.max(0, review.likes_count - 1) })
-          .eq('id', reviewId);
       } else {
-        // Add like
+        // Add like - trigger automatically updates likes_count
         await supabase
           .from('review_likes')
           .insert({ user_id: user.id, review_id: reviewId });
-
-        await supabase
-          .from('anime_reviews')
-          .update({ likes_count: review.likes_count + 1 })
-          .eq('id', reviewId);
       }
 
       await fetchReviews();
