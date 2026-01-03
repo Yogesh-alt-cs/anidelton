@@ -95,6 +95,25 @@ export const useAnimeReviews = (animeId: number | null) => {
       return false;
     }
 
+    // Input validation - prevent excessively long content
+    const trimmedContent = content.trim();
+    const trimmedTitle = title?.trim() || null;
+    
+    if (trimmedContent.length > 5000) {
+      toast.error('Review is too long. Maximum 5000 characters.');
+      return false;
+    }
+    
+    if (trimmedContent.length === 0) {
+      toast.error('Review content cannot be empty.');
+      return false;
+    }
+    
+    if (trimmedTitle && trimmedTitle.length > 200) {
+      toast.error('Review title is too long. Maximum 200 characters.');
+      return false;
+    }
+
     try {
       const { data, error } = await supabase
         .from('anime_reviews')
@@ -102,8 +121,8 @@ export const useAnimeReviews = (animeId: number | null) => {
           user_id: user.id,
           anime_id: animeId,
           rating,
-          content,
-          title: title || null,
+          content: trimmedContent,
+          title: trimmedTitle,
           spoiler: spoiler || false
         })
         .select()
@@ -123,13 +142,32 @@ export const useAnimeReviews = (animeId: number | null) => {
   const updateReview = async (reviewId: string, rating: number, content: string, title?: string, spoiler?: boolean) => {
     if (!user) return false;
 
+    // Input validation - prevent excessively long content
+    const trimmedContent = content.trim();
+    const trimmedTitle = title?.trim() || null;
+    
+    if (trimmedContent.length > 5000) {
+      toast.error('Review is too long. Maximum 5000 characters.');
+      return false;
+    }
+    
+    if (trimmedContent.length === 0) {
+      toast.error('Review content cannot be empty.');
+      return false;
+    }
+    
+    if (trimmedTitle && trimmedTitle.length > 200) {
+      toast.error('Review title is too long. Maximum 200 characters.');
+      return false;
+    }
+
     try {
       const { error } = await supabase
         .from('anime_reviews')
         .update({
           rating,
-          content,
-          title: title || null,
+          content: trimmedContent,
+          title: trimmedTitle,
           spoiler: spoiler || false
         })
         .eq('id', reviewId)
