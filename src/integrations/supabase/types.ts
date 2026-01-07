@@ -89,6 +89,81 @@ export type Database = {
         }
         Relationships: []
       }
+      complaints: {
+        Row: {
+          anime_id: number | null
+          anime_title: string | null
+          browser_info: string | null
+          created_at: string
+          description: string
+          device_info: string | null
+          episode_id: string | null
+          episode_number: number | null
+          id: string
+          issue_type: string
+          status: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          anime_id?: number | null
+          anime_title?: string | null
+          browser_info?: string | null
+          created_at?: string
+          description: string
+          device_info?: string | null
+          episode_id?: string | null
+          episode_number?: number | null
+          id?: string
+          issue_type: string
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          anime_id?: number | null
+          anime_title?: string | null
+          browser_info?: string | null
+          created_at?: string
+          description?: string
+          device_info?: string | null
+          episode_id?: string | null
+          episode_number?: number | null
+          id?: string
+          issue_type?: string
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      faq: {
+        Row: {
+          answer: string
+          category: string
+          created_at: string
+          id: string
+          order_index: number
+          question: string
+        }
+        Insert: {
+          answer: string
+          category?: string
+          created_at?: string
+          id?: string
+          order_index?: number
+          question: string
+        }
+        Update: {
+          answer?: string
+          category?: string
+          created_at?: string
+          id?: string
+          order_index?: number
+          question?: string
+        }
+        Relationships: []
+      }
       notification_subscriptions: {
         Row: {
           anime_id: number
@@ -177,6 +252,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      support_tickets: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          message: string
+          status: string
+          subject: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          message: string
+          status?: string
+          subject: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          message?: string
+          status?: string
+          subject?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
       }
       watch_history: {
         Row: {
