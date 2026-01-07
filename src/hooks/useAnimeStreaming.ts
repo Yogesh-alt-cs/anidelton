@@ -1,4 +1,17 @@
-import React, { useState, useCallback } from 'react';
+import { useState, useCallback } from 'react';
+import {
+  StreamServer,
+  StreamSource,
+  getStreamSources,
+  getPrimaryEmbedUrl,
+  getFallbackEmbedUrls,
+  getServerEmbedUrl,
+  searchAnimeOnConsumet,
+  getAnimeInfoFromConsumet,
+  getEpisodeSourcesFromConsumet,
+  selectBestQualitySource,
+  AVAILABLE_SERVERS,
+} from '@/lib/streamingSources';
 
 export type StreamingProvider = 'gogoanime' | 'zoro' | '9anime';
 
@@ -44,193 +57,148 @@ export interface AnimeInfo {
   }>;
 }
 
-// Multiple CORS proxies for fallback
-const CORS_PROXIES = [
-  'https://api.allorigins.win/raw?url=',
-  'https://corsproxy.org/?',
-  'https://api.codetabs.com/v1/proxy?quest=',
+const PROVIDERS: { id: StreamingProvider; name: string }[] = [
+  { id: 'gogoanime', name: 'Gogoanime' },
+  { id: 'zoro', name: 'Zoro' },
+  { id: '9anime', name: '9Anime' },
 ];
-
-const PROVIDERS: { id: StreamingProvider; name: string; baseUrl: string }[] = [
-  { id: 'gogoanime', name: 'Gogoanime', baseUrl: 'https://api.consumet.org/anime/gogoanime' },
-  { id: 'zoro', name: 'Zoro', baseUrl: 'https://api.consumet.org/anime/zoro' },
-  { id: '9anime', name: '9Anime', baseUrl: 'https://api.consumet.org/anime/9anime' },
-];
-
-// Helper to fetch with CORS proxy fallbacks
-const fetchWithProxy = async (url: string) => {
-  let lastError: Error | null = null;
-  
-  // First try direct fetch (might work for some APIs)
-  try {
-    const directResponse = await fetch(url);
-    if (directResponse.ok) {
-      return directResponse.json();
-    }
-  } catch {
-    // Direct fetch failed, try proxies
-  }
-  
-  // Try each CORS proxy
-  for (const proxy of CORS_PROXIES) {
-    try {
-      const proxiedUrl = `${proxy}${encodeURIComponent(url)}`;
-      const response = await fetch(proxiedUrl);
-      if (response.ok) {
-        const text = await response.text();
-        try {
-          return JSON.parse(text);
-        } catch {
-          // Some proxies return the response wrapped, try extracting
-          const jsonMatch = text.match(/\{[\s\S]*\}/);
-          if (jsonMatch) {
-            return JSON.parse(jsonMatch[0]);
-          }
-        }
-      }
-    } catch (err) {
-      lastError = err as Error;
-      continue;
-    }
-  }
-  
-  throw lastError || new Error('All CORS proxies failed');
-};
 
 export const useAnimeStreaming = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [currentProvider, setCurrentProvider] = useState<StreamingProvider>('gogoanime');
+  const [currentServer, setCurrentServer] = useState<StreamServer>('vidwish');
 
-  const getProviderUrl = (provider: StreamingProvider) => {
-    return PROVIDERS.find(p => p.id === provider)?.baseUrl || PROVIDERS[0].baseUrl;
-  };
-
-  const searchAnime = useCallback(async (query: string, provider?: StreamingProvider): Promise<SearchResult[]> => {
+  // Search for anime
+  const searchAnime = useCallback(async (query: string): Promise<SearchResult[]> => {
     setLoading(true);
     setError(null);
-    
-    const providerToUse = provider || currentProvider;
-    const baseUrl = getProviderUrl(providerToUse);
-    
+
     try {
-      const data = await fetchWithProxy(`${baseUrl}/${encodeURIComponent(query)}`);
-      return data.results || [];
+      const results = await searchAnimeOnConsumet(query);
+      return results.map((r: any) => ({
+        id: r.id,
+        title: r.title,
+        image: r.image,
+        releaseDate: r.releaseDate,
+        subOrDub: r.subOrDub,
+      }));
     } catch (err) {
-      // Try fallback providers
-      for (const fallback of PROVIDERS.filter(p => p.id !== providerToUse)) {
-        try {
-          const data = await fetchWithProxy(`${fallback.baseUrl}/${encodeURIComponent(query)}`);
-          if (data.results?.length > 0) {
-            setCurrentProvider(fallback.id);
-            return data.results;
-          }
-        } catch {
-          continue;
-        }
-      }
-      
-      setError('Failed to search anime from all sources');
+      setError('Failed to search anime');
       console.error('Search error:', err);
       return [];
     } finally {
       setLoading(false);
     }
-  }, [currentProvider]);
+  }, []);
 
-  const getAnimeInfo = useCallback(async (animeId: string, provider?: StreamingProvider): Promise<AnimeInfo | null> => {
+  // Get anime info
+  const getAnimeInfo = useCallback(async (animeId: string): Promise<AnimeInfo | null> => {
     setLoading(true);
     setError(null);
-    
-    const providerToUse = provider || currentProvider;
-    const baseUrl = getProviderUrl(providerToUse);
-    
+
     try {
-      const data = await fetchWithProxy(`${baseUrl}/info/${encodeURIComponent(animeId)}`);
-      return data;
+      const info = await getAnimeInfoFromConsumet(animeId);
+      if (!info) return null;
+
+      return {
+        id: info.id,
+        title: info.title,
+        image: info.image,
+        description: info.description,
+        status: info.status,
+        releaseDate: info.releaseDate,
+        totalEpisodes: info.totalEpisodes,
+        genres: info.genres,
+        episodes: info.episodes || [],
+      };
     } catch (err) {
-      // Try fallback providers
-      for (const fallback of PROVIDERS.filter(p => p.id !== providerToUse)) {
-        try {
-          const data = await fetchWithProxy(`${fallback.baseUrl}/info/${encodeURIComponent(animeId)}`);
-          if (data) {
-            setCurrentProvider(fallback.id);
-            return data;
-          }
-        } catch {
-          continue;
-        }
-      }
-      
-      setError('Failed to get anime info from all sources');
+      setError('Failed to get anime info');
       console.error('Info error:', err);
       return null;
     } finally {
       setLoading(false);
     }
-  }, [currentProvider]);
+  }, []);
 
-  const getEpisodeSources = useCallback(async (episodeId: string, provider?: StreamingProvider): Promise<EpisodeSource | null> => {
+  // Get episode streaming sources (HLS)
+  const getEpisodeSources = useCallback(async (episodeId: string): Promise<EpisodeSource | null> => {
     setLoading(true);
     setError(null);
-    
-    const providerToUse = provider || currentProvider;
-    const baseUrl = getProviderUrl(providerToUse);
-    
+
     try {
-      const data = await fetchWithProxy(`${baseUrl}/watch/${encodeURIComponent(episodeId)}`);
-      return data;
+      const data = await getEpisodeSourcesFromConsumet(episodeId);
+      if (!data) return null;
+
+      return {
+        sources: data.sources || [],
+        subtitles: data.subtitles,
+        headers: data.headers,
+        download: data.download,
+      };
     } catch (err) {
-      // Try fallback providers  
-      for (const fallback of PROVIDERS.filter(p => p.id !== providerToUse)) {
-        try {
-          const data = await fetchWithProxy(`${fallback.baseUrl}/watch/${encodeURIComponent(episodeId)}`);
-          if (data?.sources?.length > 0) {
-            setCurrentProvider(fallback.id);
-            return data;
-          }
-        } catch {
-          continue;
-        }
-      }
-      
-      setError('Failed to get streaming sources from all providers');
-      console.error('Streaming error:', err);
+      setError('Failed to get streaming sources');
+      console.error('Sources error:', err);
       return null;
     } finally {
       setLoading(false);
     }
-  }, [currentProvider]);
+  }, []);
 
-  const getEmbedUrl = useCallback((episodeId: string, provider?: StreamingProvider): string => {
-    // Use embed URLs that work with Consumet episode IDs
-    const encodedId = encodeURIComponent(episodeId);
-    const providerToUse = provider || currentProvider;
-    switch (providerToUse) {
-      case 'gogoanime':
-        return `https://embtaku.pro/streaming.php?id=${encodedId}`;
-      case 'zoro':
-        return `https://rapid-cloud.co/embed-6-v2/e-1/${encodedId}?autoPlay=1&oa=0&asi=1`;
-      case '9anime':
-        return `https://vidstream.pro/embed/${encodedId}`;
-      default:
-        return `https://embtaku.pro/streaming.php?id=${encodedId}`;
-    }
-  }, [currentProvider]);
+  // Get embed URL for current server
+  const getEmbedUrl = useCallback((animeTitle: string, episode: number, isDub = false): string => {
+    return getServerEmbedUrl(animeTitle, episode, currentServer, isDub);
+  }, [currentServer]);
 
-  const switchProvider = (provider: StreamingProvider) => {
+  // Get all embed URLs with fallbacks
+  const getAllEmbedUrls = useCallback((animeTitle: string, episode: number, isDub = false): {
+    primary: string;
+    fallbacks: string[];
+  } => {
+    return {
+      primary: getPrimaryEmbedUrl(animeTitle, episode, isDub),
+      fallbacks: getFallbackEmbedUrls(animeTitle, episode, isDub),
+    };
+  }, []);
+
+  // Get stream sources for server selection
+  const getAvailableServers = useCallback((animeTitle: string, episode: number, isDub = false): StreamSource[] => {
+    return getStreamSources(animeTitle, episode, isDub);
+  }, []);
+
+  // Switch provider
+  const switchProvider = useCallback((provider: StreamingProvider) => {
     setCurrentProvider(provider);
-  };
+    setError(null);
+  }, []);
+
+  // Switch server
+  const switchServer = useCallback((server: StreamServer) => {
+    setCurrentServer(server);
+    setError(null);
+  }, []);
 
   return {
+    // Search and info
     searchAnime,
     getAnimeInfo,
     getEpisodeSources,
+    
+    // Embed URLs
     getEmbedUrl,
-    switchProvider,
+    getAllEmbedUrls,
+    getAvailableServers,
+    
+    // State
     currentProvider,
+    currentServer,
     providers: PROVIDERS,
+    servers: AVAILABLE_SERVERS,
     loading,
-    error
+    error,
+    
+    // Actions
+    switchProvider,
+    switchServer,
   };
 };
