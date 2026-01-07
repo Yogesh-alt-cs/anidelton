@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Eye, EyeOff, Mail, Lock, User, ArrowRight, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,12 +7,15 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { z } from 'zod';
+import ForgotPasswordModal from '@/components/ForgotPasswordModal';
+import { supabase } from '@/integrations/supabase/client';
 
 const emailSchema = z.string().email('Please enter a valid email');
 const passwordSchema = z.string().min(6, 'Password must be at least 6 characters');
 
 const Auth = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user, signIn, signUp, signInWithGoogle, loading: authLoading } = useAuth();
   
   const [isLogin, setIsLogin] = useState(true);
@@ -22,13 +25,44 @@ const Auth = () => {
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [isResetMode, setIsResetMode] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
 
-  // Redirect if already logged in
+  // Check if this is a password reset
   useEffect(() => {
-    if (user) {
+    if (searchParams.get('reset') === 'true') {
+      setIsResetMode(true);
+    }
+  }, [searchParams]);
+
+  // Redirect if already logged in (but not in reset mode)
+  useEffect(() => {
+    if (user && !isResetMode) {
       navigate('/');
     }
-  }, [user, navigate]);
+  }, [user, navigate, isResetMode]);
+
+  const handlePasswordReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newPassword.length < 6) {
+      toast.error('Password must be at least 6 characters');
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw error;
+      toast.success('Password updated successfully!');
+      setIsResetMode(false);
+      navigate('/');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to update password');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const validateForm = () => {
     const newErrors: { email?: string; password?: string } = {};
@@ -96,6 +130,35 @@ const Auth = () => {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  // Password reset mode UI
+  if (isResetMode) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center px-6">
+        <div className="w-full max-w-sm space-y-6">
+          <div className="text-center">
+            <h1 className="text-2xl font-bold">Set New Password</h1>
+            <p className="text-muted-foreground mt-2">Enter your new password below</p>
+          </div>
+          <form onSubmit={handlePasswordReset} className="space-y-4">
+            <div className="relative">
+              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+              <Input
+                type="password"
+                placeholder="New password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                className="pl-10 h-12 bg-secondary"
+              />
+            </div>
+            <Button type="submit" disabled={loading} className="w-full">
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Update Password'}
+            </Button>
+          </form>
+        </div>
       </div>
     );
   }
@@ -190,7 +253,11 @@ const Auth = () => {
               <div className="flex items-center justify-between">
                 <label className="text-sm font-medium">Password</label>
                 {isLogin && (
-                  <button type="button" className="text-xs text-primary hover:underline">
+                  <button 
+                    type="button" 
+                    onClick={() => setShowForgotPassword(true)}
+                    className="text-xs text-primary hover:underline"
+                  >
                     Forgot password?
                   </button>
                 )}
@@ -276,6 +343,11 @@ const Auth = () => {
           </p>
         </div>
       </main>
+
+      <ForgotPasswordModal 
+        open={showForgotPassword} 
+        onClose={() => setShowForgotPassword(false)} 
+      />
     </div>
   );
 };

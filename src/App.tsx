@@ -19,6 +19,7 @@ import Settings from "./pages/Settings";
 import Genres from "./pages/Genres";
 import History from "./pages/History";
 import Downloads from "./pages/Downloads";
+import HelpSupport from "./pages/HelpSupport";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -46,6 +47,7 @@ function App() {
                 <Route path="/genres" element={<Genres />} />
                 <Route path="/history" element={<History />} />
                 <Route path="/downloads" element={<Downloads />} />
+                <Route path="/help" element={<HelpSupport />} />
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />
               </Routes>
