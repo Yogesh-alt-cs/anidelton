@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { Bell, Check, Trash2, Loader2, Play, CheckCheck } from 'lucide-react';
+import { Bell, Check, Trash2, Loader2, Play, CheckCheck, XCircle } from 'lucide-react';
 import Header from '@/components/Header';
 import BottomNav from '@/components/BottomNav';
 import { Button } from '@/components/ui/button';
@@ -16,7 +16,8 @@ const Notifications = () => {
     loading, 
     unreadCount, 
     markAsRead, 
-    markAllAsRead, 
+    markAllAsRead,
+    clearAllNotifications,
     deleteNotification 
   } = useNotifications();
 
@@ -55,12 +56,25 @@ const Notifications = () => {
               </p>
             </div>
           </div>
-          {unreadCount > 0 && (
-            <Button variant="ghost" size="sm" onClick={markAllAsRead} className="gap-2">
-              <CheckCheck className="w-4 h-4" />
-              Mark all read
-            </Button>
-          )}
+          <div className="flex items-center gap-2">
+            {unreadCount > 0 && (
+              <Button variant="ghost" size="sm" onClick={markAllAsRead} className="gap-2">
+                <CheckCheck className="w-4 h-4" />
+                Mark all read
+              </Button>
+            )}
+            {notifications.length > 0 && (
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={clearAllNotifications} 
+                className="gap-2 text-destructive hover:text-destructive"
+              >
+                <XCircle className="w-4 h-4" />
+                Clear all
+              </Button>
+            )}
+          </div>
         </div>
 
         {/* Notifications List */}

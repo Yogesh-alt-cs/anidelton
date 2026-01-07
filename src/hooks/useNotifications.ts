@@ -147,6 +147,24 @@ export const useNotifications = () => {
     }
   };
 
+  const clearAllNotifications = async () => {
+    if (!user) return;
+
+    try {
+      await supabase
+        .from('anime_notifications')
+        .delete()
+        .eq('user_id', user.id);
+
+      setNotifications([]);
+      setUnreadCount(0);
+      toast.success('All notifications cleared');
+    } catch (err) {
+      console.error('Error clearing notifications:', err);
+      toast.error('Failed to clear notifications');
+    }
+  };
+
   const deleteNotification = async (notificationId: string) => {
     if (!user) return;
 
@@ -222,6 +240,7 @@ export const useNotifications = () => {
     unreadCount,
     markAsRead,
     markAllAsRead,
+    clearAllNotifications,
     deleteNotification,
     subscribeToAnime,
     unsubscribeFromAnime,
