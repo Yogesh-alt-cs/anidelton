@@ -1,1 +1,10 @@
 project_id = "pjohoasnvzyxjvnhxumi"
+
+[functions.send-complaint-email]
+verify_jwt = false
+
+[functions.send-contact-email]
+verify_jwt = false
+
+[functions.check-new-episodes]
+verify_jwt = false

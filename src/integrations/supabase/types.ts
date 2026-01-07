@@ -171,6 +171,7 @@ export type Database = {
           created_at: string
           enabled: boolean | null
           id: string
+          last_notified_episode: number | null
           user_id: string
         }
         Insert: {
@@ -179,6 +180,7 @@ export type Database = {
           created_at?: string
           enabled?: boolean | null
           id?: string
+          last_notified_episode?: number | null
           user_id: string
         }
         Update: {
@@ -187,6 +189,7 @@ export type Database = {
           created_at?: string
           enabled?: boolean | null
           id?: string
+          last_notified_episode?: number | null
           user_id?: string
         }
         Relationships: []
@@ -252,6 +255,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      sent_notification_tracking: {
+        Row: {
+          anime_id: number
+          episode_number: number
+          id: string
+          notification_type: string
+          sent_at: string
+        }
+        Insert: {
+          anime_id: number
+          episode_number: number
+          id?: string
+          notification_type?: string
+          sent_at?: string
+        }
+        Update: {
+          anime_id?: number
+          episode_number?: number
+          id?: string
+          notification_type?: string
+          sent_at?: string
+        }
+        Relationships: []
       }
       support_tickets: {
         Row: {
