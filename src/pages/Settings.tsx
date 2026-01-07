@@ -265,13 +265,13 @@ const Settings = () => {
         return (
           <div className="space-y-4">
             {[
-              { label: 'FAQ', description: 'Frequently asked questions' },
-              { label: 'Contact Support', description: 'Get help from our team' },
-              { label: 'Report a Bug', description: 'Help us improve' },
-              { label: 'About', description: 'App version and info' },
+              { label: 'FAQ', description: 'Frequently asked questions', path: '/help' },
+              { label: 'Contact Support', description: 'Get help from our team', path: '/help' },
+              { label: 'Report a Bug', description: 'Help us improve', path: '/help' },
             ].map((item) => (
               <button
                 key={item.label}
+                onClick={() => navigate(item.path)}
                 className="w-full flex items-center justify-between p-4 rounded-xl bg-card border border-border/50 hover:border-primary/30 transition-all"
               >
                 <div className="text-left">

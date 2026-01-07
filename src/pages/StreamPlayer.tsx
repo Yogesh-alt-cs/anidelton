@@ -11,7 +11,8 @@ import {
   Film,
   Download,
   RefreshCw,
-  Video
+  Video,
+  AlertTriangle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -25,6 +26,7 @@ import EmbedPlayer from '@/components/EmbedPlayer';
 import DownloadButton from '@/components/DownloadButton';
 import TrailerModal from '@/components/TrailerModal';
 import SocialShare from '@/components/SocialShare';
+import ReportIssueModal from '@/components/ReportIssueModal';
 import { selectBestSource } from '@/lib/consumet';
 import { toast } from 'sonner';
 
@@ -43,6 +45,7 @@ const StreamPlayer = () => {
   const [showEpisodes, setShowEpisodes] = useState(false);
   const [showProviders, setShowProviders] = useState(false);
   const [showTrailer, setShowTrailer] = useState(false);
+  const [showReportIssue, setShowReportIssue] = useState(false);
   const [playerMode, setPlayerMode] = useState<PlayerMode>('embed');
   const [isSearching, setIsSearching] = useState(false);
   const [audioType, setAudioType] = useState<'sub' | 'dub'>('sub');
@@ -348,6 +351,16 @@ const StreamPlayer = () => {
                 videoUrl={streamUrl}
               />
             )}
+            
+            {/* Report Issue Button */}
+            <Button 
+              variant="ghost" 
+              size="icon"
+              onClick={() => setShowReportIssue(true)}
+              title="Report Issue"
+            >
+              <AlertTriangle className="w-5 h-5" />
+            </Button>
             
             <Button 
               variant="ghost" 
@@ -678,6 +691,15 @@ const StreamPlayer = () => {
         onClose={() => setShowTrailer(false)}
         trailerYoutubeId={jikanAnime?.trailer?.youtube_id}
         animeTitle={displayTitle}
+      />
+
+      {/* Report Issue Modal */}
+      <ReportIssueModal
+        open={showReportIssue}
+        onClose={() => setShowReportIssue(false)}
+        animeId={animeId ? parseInt(animeId) : undefined}
+        animeTitle={displayTitle}
+        episodeNumber={currentEpisode}
       />
     </div>
   );
