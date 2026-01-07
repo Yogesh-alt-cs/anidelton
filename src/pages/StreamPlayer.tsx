@@ -47,7 +47,7 @@ const StreamPlayer = () => {
   const [isSearching, setIsSearching] = useState(false);
   const [audioType, setAudioType] = useState<'sub' | 'dub'>('sub');
   
-  const { searchAnime, getAnimeInfo, getEpisodeSources, getEmbedUrl, switchProvider, currentProvider, providers, loading, error } = useAnimeStreaming();
+  const { searchAnime, getAnimeInfo, getEpisodeSources, getEmbedUrl, getAllEmbedUrls, switchProvider, switchServer, currentProvider, currentServer, providers, servers, loading, error } = useAnimeStreaming();
   const { data: jikanAnime, loading: jikanLoading } = useAnimeDetails(animeId ? parseInt(animeId) : null);
   const { updateProgress } = useWatchProgress();
   const { addToHistory } = useWatchHistory();
@@ -171,11 +171,15 @@ const StreamPlayer = () => {
   // Fetch episode sources
   useEffect(() => {
     const fetchSources = async () => {
+      const animeTitle = jikanAnime?.title_english || jikanAnime?.title || '';
+      const isDub = audioType === 'dub';
+      
       if (!animeInfo?.episodes?.length) {
-        // Generate direct embed URL if no episode info
-        if (consumetAnimeId) {
-          const embed = getEmbedUrl(`${consumetAnimeId}-episode-${currentEpisode}`);
-          setEmbedUrl(embed);
+        // Generate direct embed URL if no episode info from Consumet
+        if (animeTitle) {
+          const embedUrls = getAllEmbedUrls(animeTitle, currentEpisode, isDub);
+          setEmbedUrl(embedUrls.primary);
+          setFallbackEmbedUrls(embedUrls.fallbacks);
         }
         return;
       }
@@ -191,11 +195,14 @@ const StreamPlayer = () => {
         return;
       }
       
-      // Set embed URL
-      const embed = getEmbedUrl(episode.id);
-      setEmbedUrl(embed);
+      // Set embed URLs using anime title
+      if (animeTitle) {
+        const embedUrls = getAllEmbedUrls(animeTitle, currentEpisode, isDub);
+        setEmbedUrl(embedUrls.primary);
+        setFallbackEmbedUrls(embedUrls.fallbacks);
+      }
       
-      // Fetch HLS sources
+      // Fetch HLS sources from Consumet
       try {
         const sourcesData = await getEpisodeSources(episode.id);
         if (sourcesData && sourcesData.sources?.length > 0) {
@@ -214,7 +221,7 @@ const StreamPlayer = () => {
     };
     
     fetchSources();
-  }, [animeInfo, currentEpisode, getEpisodeSources, getEmbedUrl, consumetAnimeId]);
+  }, [animeInfo, currentEpisode, getEpisodeSources, getAllEmbedUrls, jikanAnime, audioType]);
 
   const handleTimeUpdate = (currentTime: number, duration: number) => {
     if (user && animeId && duration > 0) {
@@ -254,6 +261,18 @@ const StreamPlayer = () => {
     setSources(null);
     setAnimeInfo(null);
     setConsumetAnimeId(null);
+  };
+
+  const handleServerChange = (serverId: string) => {
+    switchServer(serverId as any);
+    setShowProviders(false);
+    // Regenerate embed URLs with new server
+    const animeTitle = jikanAnime?.title_english || jikanAnime?.title || '';
+    if (animeTitle) {
+      const embedUrls = getAllEmbedUrls(animeTitle, currentEpisode, audioType === 'dub');
+      setEmbedUrl(embedUrls.primary);
+      setFallbackEmbedUrls(embedUrls.fallbacks);
+    }
   };
 
   const selectQuality = (url: string) => {
@@ -422,25 +441,26 @@ const StreamPlayer = () => {
           </div>
         )}
 
-        {/* Provider Selection Panel */}
+        {/* Server Selection Panel */}
         {showProviders && (
-          <div className="absolute top-2 right-2 w-48 bg-card/95 backdrop-blur-sm rounded-xl overflow-hidden z-50 shadow-lg border border-border">
+          <div className="absolute top-2 right-2 w-56 bg-card/95 backdrop-blur-sm rounded-xl overflow-hidden z-50 shadow-lg border border-border max-h-80 overflow-y-auto">
             <div className="p-3 border-b border-border">
-              <h3 className="font-medium text-sm">Streaming Source</h3>
+              <h3 className="font-medium text-sm">Video Servers</h3>
             </div>
             <div className="p-2 space-y-1">
-              {providers.map((provider) => (
+              {servers.map((server) => (
                 <button
-                  key={provider.id}
-                  onClick={() => handleProviderChange(provider.id)}
+                  key={server.id}
+                  onClick={() => handleServerChange(server.id)}
                   className={cn(
                     "w-full text-left px-3 py-2 rounded-lg text-sm transition-colors",
-                    currentProvider === provider.id
+                    currentServer === server.id
                       ? "bg-primary text-primary-foreground"
                       : "hover:bg-secondary"
                   )}
                 >
-                  {provider.name}
+                  <div className="font-medium">{server.name}</div>
+                  <div className="text-xs opacity-70">{server.description}</div>
                 </button>
               ))}
             </div>

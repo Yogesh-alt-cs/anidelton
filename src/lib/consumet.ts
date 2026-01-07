@@ -1,7 +1,13 @@
 // Consumet API utilities for fetching anime streaming data
+// With multiple fallback servers and CORS handling
 
-const CONSUMET_BASE_URL = 'https://api.consumet.org';
-const CORS_PROXY = 'https://corsproxy.io/?';
+import {
+  fetchFromConsumet,
+  searchAnimeOnConsumet,
+  getAnimeInfoFromConsumet,
+  getEpisodeSourcesFromConsumet,
+  selectBestQualitySource,
+} from './streamingSources';
 
 export type Provider = 'gogoanime' | 'zoro' | '9anime';
 
@@ -62,22 +68,19 @@ export async function searchAnime(
   query: string,
   provider: Provider = 'gogoanime'
 ): Promise<AnimeSearchResult[]> {
-  const providerInfo = providers.find(p => p.id === provider) || providers[0];
-  
   try {
-    const response = await fetch(
-      `${CONSUMET_BASE_URL}${providerInfo.path}/${encodeURIComponent(query)}`
-    );
-    
-    if (!response.ok) {
-      throw new Error(`Search failed: ${response.status}`);
-    }
-    
-    const data = await response.json();
-    return data.results || [];
+    const results = await searchAnimeOnConsumet(query);
+    return results.map((r: any) => ({
+      id: r.id,
+      title: r.title,
+      image: r.image,
+      releaseDate: r.releaseDate,
+      subOrDub: r.subOrDub,
+      url: r.url,
+    }));
   } catch (error) {
     console.error(`Search error with ${provider}:`, error);
-    throw error;
+    return [];
   }
 }
 
@@ -96,7 +99,7 @@ export async function searchAnimeWithFallback(query: string): Promise<{
       continue;
     }
   }
-  
+
   return { results: [], provider: 'gogoanime' };
 }
 
@@ -105,21 +108,26 @@ export async function getAnimeInfo(
   animeId: string,
   provider: Provider = 'gogoanime'
 ): Promise<AnimeInfo | null> {
-  const providerInfo = providers.find(p => p.id === provider) || providers[0];
-  
   try {
-    const response = await fetch(
-      `${CONSUMET_BASE_URL}${providerInfo.path}/info/${encodeURIComponent(animeId)}`
-    );
-    
-    if (!response.ok) {
-      throw new Error(`Info fetch failed: ${response.status}`);
-    }
-    
-    return await response.json();
+    const info = await getAnimeInfoFromConsumet(animeId);
+    if (!info) return null;
+
+    return {
+      id: info.id,
+      title: info.title,
+      url: info.url,
+      image: info.image,
+      description: info.description,
+      type: info.type,
+      releaseDate: info.releaseDate,
+      status: info.status,
+      totalEpisodes: info.totalEpisodes,
+      genres: info.genres,
+      episodes: info.episodes || [],
+    };
   } catch (error) {
     console.error(`Info error with ${provider}:`, error);
-    throw error;
+    return null;
   }
 }
 
@@ -138,7 +146,7 @@ export async function getAnimeInfoWithFallback(animeId: string): Promise<{
       continue;
     }
   }
-  
+
   return { info: null, provider: 'gogoanime' };
 }
 
@@ -147,21 +155,19 @@ export async function getEpisodeSources(
   episodeId: string,
   provider: Provider = 'gogoanime'
 ): Promise<EpisodeSource | null> {
-  const providerInfo = providers.find(p => p.id === provider) || providers[0];
-  
   try {
-    const response = await fetch(
-      `${CONSUMET_BASE_URL}${providerInfo.path}/watch/${encodeURIComponent(episodeId)}`
-    );
-    
-    if (!response.ok) {
-      throw new Error(`Watch fetch failed: ${response.status}`);
-    }
-    
-    return await response.json();
+    const data = await getEpisodeSourcesFromConsumet(episodeId);
+    if (!data) return null;
+
+    return {
+      sources: data.sources || [],
+      subtitles: data.subtitles,
+      headers: data.headers,
+      download: data.download,
+    };
   } catch (error) {
     console.error(`Sources error with ${provider}:`, error);
-    throw error;
+    return null;
   }
 }
 
@@ -180,35 +186,21 @@ export async function getEpisodeSourcesWithFallback(episodeId: string): Promise<
       continue;
     }
   }
-  
+
   return { sources: null, provider: 'gogoanime' };
 }
 
 // Apply CORS proxy to streaming URL
 export function proxyStreamUrl(url: string): string {
   if (url.includes('.m3u8')) {
-    return `${CORS_PROXY}${encodeURIComponent(url)}`;
+    return `https://corsproxy.io/?${encodeURIComponent(url)}`;
   }
   return url;
 }
 
 // Get the best quality source from available sources
 export function selectBestSource(sources: StreamingSource[]): StreamingSource | null {
-  if (!sources || sources.length === 0) return null;
-  
-  const qualityOrder = ['1080p', '720p', '480p', '360p', 'default', 'backup', 'auto'];
-  
-  const sorted = [...sources].sort((a, b) => {
-    const aIndex = qualityOrder.findIndex(q => 
-      a.quality?.toLowerCase().includes(q.toLowerCase())
-    );
-    const bIndex = qualityOrder.findIndex(q => 
-      b.quality?.toLowerCase().includes(q.toLowerCase())
-    );
-    return (aIndex === -1 ? 999 : aIndex) - (bIndex === -1 ? 999 : bIndex);
-  });
-  
-  return sorted[0];
+  return selectBestQualitySource(sources);
 }
 
 // Get available providers
@@ -218,13 +210,12 @@ export function getProviders() {
 
 // Get embed URL (for iframe-based playback)
 export function getEmbedUrl(episodeId: string, provider: Provider = 'gogoanime'): string {
-  // Some providers offer direct embed URLs
   switch (provider) {
     case 'gogoanime':
-      return `https://gogoanime.tel/streaming.php?id=${episodeId}`;
+      return `https://embtaku.pro/streaming.php?id=${encodeURIComponent(episodeId)}`;
     case 'zoro':
-      return `https://zoro.to/watch/${episodeId}`;
+      return `https://rapid-cloud.co/embed-6-v2/e-1/${encodeURIComponent(episodeId)}?autoPlay=1&oa=0&asi=1`;
     default:
-      return '';
+      return `https://embtaku.pro/streaming.php?id=${encodeURIComponent(episodeId)}`;
   }
 }
