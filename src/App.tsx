@@ -48,6 +48,7 @@ function App() {
                 <Route path="/history" element={<History />} />
                 <Route path="/downloads" element={<Downloads />} />
                 <Route path="/help" element={<HelpSupport />} />
+                <Route path="/settings/help" element={<HelpSupport />} />
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />
               </Routes>
