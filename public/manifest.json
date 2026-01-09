@@ -9,9 +9,9 @@
   "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "/favicon.ico",
+      "src": "/favicon.png",
       "sizes": "48x48",
-      "type": "image/x-icon"
+      "type": "image/png"
     },
     {
       "src": "/pwa-192x192.png",
@@ -32,13 +32,13 @@
       "name": "Search Anime",
       "short_name": "Search",
       "url": "/search",
-      "icons": [{ "src": "/favicon.ico", "sizes": "96x96" }]
+      "icons": [{ "src": "/pwa-192x192.png", "sizes": "192x192" }]
     },
     {
       "name": "My Watchlist",
       "short_name": "Watchlist",
       "url": "/watchlist",
-      "icons": [{ "src": "/favicon.ico", "sizes": "96x96" }]
+      "icons": [{ "src": "/pwa-192x192.png", "sizes": "192x192" }]
     }
   ]
 }
