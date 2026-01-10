@@ -52,7 +52,7 @@ const StreamPlayer = () => {
   
   const { searchAnime, getAnimeInfo, getEpisodeSources, getEmbedUrl, getAllEmbedUrls, switchProvider, switchServer, currentProvider, currentServer, providers, servers, loading, error } = useAnimeStreaming();
   const { data: jikanAnime, loading: jikanLoading } = useAnimeDetails(animeId ? parseInt(animeId) : null);
-  const { updateProgress } = useWatchProgress();
+  const { updateProgress, progress: watchProgressData, getEpisodeProgress } = useWatchProgress(animeId ? parseInt(animeId) : undefined);
   const { addToHistory } = useWatchHistory();
   
   const [consumetAnimeId, setConsumetAnimeId] = useState<string | null>(null);
@@ -594,20 +594,38 @@ const StreamPlayer = () => {
             "grid gap-1.5 transition-all",
             showEpisodes ? "grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12" : "grid-cols-6 sm:grid-cols-8"
           )}>
-            {(showEpisodes ? animeInfo.episodes : animeInfo.episodes.slice(0, 16)).map((ep: any) => (
-              <button
-                key={ep.id}
-                onClick={() => changeEpisode(ep.number)}
-                className={cn(
-                  "aspect-square rounded-md flex items-center justify-center text-xs font-medium transition-colors",
-                  currentEpisode === ep.number
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-secondary hover:bg-secondary/80"
-                )}
-              >
-                {ep.number}
-              </button>
-            ))}
+            {(showEpisodes ? animeInfo.episodes : animeInfo.episodes.slice(0, 16)).map((ep: any) => {
+              const epProgress = getEpisodeProgress(ep.number);
+              const progressPercent = epProgress && epProgress.duration_seconds 
+                ? Math.min((epProgress.progress_seconds / epProgress.duration_seconds) * 100, 100)
+                : 0;
+              const isCompleted = epProgress?.completed;
+              
+              return (
+                <button
+                  key={ep.id}
+                  onClick={() => changeEpisode(ep.number)}
+                  className={cn(
+                    "relative aspect-square rounded-md flex items-center justify-center text-xs font-medium transition-colors overflow-hidden",
+                    currentEpisode === ep.number
+                      ? "bg-primary text-primary-foreground"
+                      : isCompleted
+                        ? "bg-primary/30 text-primary border border-primary/50"
+                        : "bg-secondary hover:bg-secondary/80"
+                  )}
+                >
+                  {ep.number}
+                  {progressPercent > 0 && !isCompleted && currentEpisode !== ep.number && (
+                    <div className="absolute bottom-0 left-0 right-0 h-1 bg-muted/50">
+                      <div 
+                        className="h-full bg-gradient-to-r from-primary to-accent"
+                        style={{ width: `${progressPercent}%` }}
+                      />
+                    </div>
+                  )}
+                </button>
+              );
+            })}
           </div>
         ) : (
           // Generate episode buttons based on Jikan data
@@ -616,20 +634,39 @@ const StreamPlayer = () => {
               "grid gap-1.5 transition-all",
               showEpisodes ? "grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12" : "grid-cols-6 sm:grid-cols-8"
             )}>
-              {Array.from({ length: showEpisodes ? jikanAnime.episodes : Math.min(16, jikanAnime.episodes) }, (_, i) => (
-                <button
-                  key={i + 1}
-                  onClick={() => changeEpisode(i + 1)}
-                  className={cn(
-                    "aspect-square rounded-md flex items-center justify-center text-xs font-medium transition-colors",
-                    currentEpisode === i + 1
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-secondary hover:bg-secondary/80"
-                  )}
-                >
-                  {i + 1}
-                </button>
-              ))}
+              {Array.from({ length: showEpisodes ? jikanAnime.episodes : Math.min(16, jikanAnime.episodes) }, (_, i) => {
+                const epNum = i + 1;
+                const epProgress = getEpisodeProgress(epNum);
+                const progressPercent = epProgress && epProgress.duration_seconds 
+                  ? Math.min((epProgress.progress_seconds / epProgress.duration_seconds) * 100, 100)
+                  : 0;
+                const isCompleted = epProgress?.completed;
+                
+                return (
+                  <button
+                    key={epNum}
+                    onClick={() => changeEpisode(epNum)}
+                    className={cn(
+                      "relative aspect-square rounded-md flex items-center justify-center text-xs font-medium transition-colors overflow-hidden",
+                      currentEpisode === epNum
+                        ? "bg-primary text-primary-foreground"
+                        : isCompleted
+                          ? "bg-primary/30 text-primary border border-primary/50"
+                          : "bg-secondary hover:bg-secondary/80"
+                    )}
+                  >
+                    {epNum}
+                    {progressPercent > 0 && !isCompleted && currentEpisode !== epNum && (
+                      <div className="absolute bottom-0 left-0 right-0 h-1 bg-muted/50">
+                        <div 
+                          className="h-full bg-gradient-to-r from-primary to-accent"
+                          style={{ width: `${progressPercent}%` }}
+                        />
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
             </div>
           )
         )}
