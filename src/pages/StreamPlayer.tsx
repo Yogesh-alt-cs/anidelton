@@ -396,23 +396,23 @@ const StreamPlayer = () => {
       </div>
 
       {/* Video Player */}
-      <div className="relative">
+      <div className="relative max-h-[50vh] sm:max-h-[55vh] lg:max-h-[60vh]">
         {isLoading && !streamUrl && !embedUrl && (
-          <div className="aspect-video flex flex-col items-center justify-center bg-secondary gap-4">
-            <Loader2 className="w-12 h-12 animate-spin text-primary" />
-            <p className="text-muted-foreground">
+          <div className="aspect-video max-h-[50vh] sm:max-h-[55vh] lg:max-h-[60vh] flex flex-col items-center justify-center bg-secondary gap-3">
+            <Loader2 className="w-10 h-10 animate-spin text-primary" />
+            <p className="text-muted-foreground text-sm">
               {isSearching ? 'Finding streams...' : 'Loading...'}
             </p>
           </div>
         )}
         
         {(error || loadError) && !canPlayHLS && !canPlayEmbed && !isLoading && (
-          <div className="aspect-video flex flex-col items-center justify-center bg-secondary gap-4 p-4">
-            <AlertCircle className="w-12 h-12 text-destructive" />
-            <p className="text-destructive text-center">{error || loadError}</p>
+          <div className="aspect-video max-h-[50vh] sm:max-h-[55vh] lg:max-h-[60vh] flex flex-col items-center justify-center bg-secondary gap-3 p-4">
+            <AlertCircle className="w-10 h-10 text-destructive" />
+            <p className="text-destructive text-center text-sm">{error || loadError}</p>
             <div className="flex gap-2">
-              <Button onClick={() => navigate(-1)}>Go Back</Button>
-              <Button variant="outline" onClick={retryLoad}>
+              <Button size="sm" onClick={() => navigate(-1)}>Go Back</Button>
+              <Button variant="outline" size="sm" onClick={retryLoad}>
                 <RefreshCw className="w-4 h-4 mr-2" />
                 Retry
               </Button>
@@ -428,7 +428,7 @@ const StreamPlayer = () => {
             subtitle={`Episode ${currentEpisode}`}
             onTimeUpdate={handleTimeUpdate}
             autoPlay
-            className="aspect-video w-full"
+            className="aspect-video w-full max-h-[50vh] sm:max-h-[55vh] lg:max-h-[60vh]"
             headers={sources?.headers}
             subtitles={sources?.subtitles}
             qualities={sources?.sources?.map(s => ({ quality: s.quality || 'Auto', url: s.url })) || []}
@@ -442,13 +442,13 @@ const StreamPlayer = () => {
             embedUrl={embedUrl}
             fallbackUrls={fallbackEmbedUrls}
             title={`${displayTitle} - Episode ${currentEpisode}`}
-            className="w-full"
+            className="w-full max-h-[50vh] sm:max-h-[55vh] lg:max-h-[60vh]"
           />
         )}
         
         {/* No player available message */}
         {!isLoading && !canPlayHLS && !canPlayEmbed && !error && !loadError && (
-          <div className="aspect-video flex flex-col items-center justify-center bg-secondary gap-4">
+          <div className="aspect-video max-h-[50vh] sm:max-h-[55vh] lg:max-h-[60vh] flex flex-col items-center justify-center bg-secondary gap-3">
             <Loader2 className="w-8 h-8 animate-spin text-primary" />
             <p className="text-muted-foreground text-sm">Preparing video...</p>
           </div>
@@ -575,31 +575,31 @@ const StreamPlayer = () => {
       </div>
 
       {/* Episode List */}
-      <div className="p-4">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold">Episodes</h2>
+      <div className="p-3">
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="text-sm font-semibold">Episodes</h2>
           <Button
             variant="outline"
             size="sm"
             onClick={() => setShowEpisodes(!showEpisodes)}
-            className="gap-1"
+            className="gap-1 h-7 text-xs px-2"
           >
-            Episode {currentEpisode}
-            <ChevronDown className={cn("w-4 h-4 transition-transform", showEpisodes && "rotate-180")} />
+            Ep {currentEpisode}
+            <ChevronDown className={cn("w-3 h-3 transition-transform", showEpisodes && "rotate-180")} />
           </Button>
         </div>
 
         {animeInfo?.episodes ? (
           <div className={cn(
-            "grid gap-2 transition-all",
-            showEpisodes ? "grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10" : "grid-cols-4 sm:grid-cols-6"
+            "grid gap-1.5 transition-all",
+            showEpisodes ? "grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12" : "grid-cols-6 sm:grid-cols-8"
           )}>
-            {(showEpisodes ? animeInfo.episodes : animeInfo.episodes.slice(0, 12)).map((ep: any) => (
+            {(showEpisodes ? animeInfo.episodes : animeInfo.episodes.slice(0, 16)).map((ep: any) => (
               <button
                 key={ep.id}
                 onClick={() => changeEpisode(ep.number)}
                 className={cn(
-                  "aspect-square rounded-lg flex items-center justify-center text-sm font-medium transition-colors",
+                  "aspect-square rounded-md flex items-center justify-center text-xs font-medium transition-colors",
                   currentEpisode === ep.number
                     ? "bg-primary text-primary-foreground"
                     : "bg-secondary hover:bg-secondary/80"
@@ -613,15 +613,15 @@ const StreamPlayer = () => {
           // Generate episode buttons based on Jikan data
           jikanAnime?.episodes && (
             <div className={cn(
-              "grid gap-2 transition-all",
-              showEpisodes ? "grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10" : "grid-cols-4 sm:grid-cols-6"
+              "grid gap-1.5 transition-all",
+              showEpisodes ? "grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12" : "grid-cols-6 sm:grid-cols-8"
             )}>
-              {Array.from({ length: showEpisodes ? jikanAnime.episodes : Math.min(12, jikanAnime.episodes) }, (_, i) => (
+              {Array.from({ length: showEpisodes ? jikanAnime.episodes : Math.min(16, jikanAnime.episodes) }, (_, i) => (
                 <button
                   key={i + 1}
                   onClick={() => changeEpisode(i + 1)}
                   className={cn(
-                    "aspect-square rounded-lg flex items-center justify-center text-sm font-medium transition-colors",
+                    "aspect-square rounded-md flex items-center justify-center text-xs font-medium transition-colors",
                     currentEpisode === i + 1
                       ? "bg-primary text-primary-foreground"
                       : "bg-secondary hover:bg-secondary/80"
@@ -634,10 +634,11 @@ const StreamPlayer = () => {
           )
         )}
         
-        {!showEpisodes && (animeInfo?.episodes?.length > 12 || (jikanAnime?.episodes && jikanAnime.episodes > 12)) && (
+        {!showEpisodes && (animeInfo?.episodes?.length > 16 || (jikanAnime?.episodes && jikanAnime.episodes > 16)) && (
           <Button
             variant="ghost"
-            className="w-full mt-2"
+            size="sm"
+            className="w-full mt-1.5 h-7 text-xs"
             onClick={() => setShowEpisodes(true)}
           >
             Show all {animeInfo?.episodes?.length || jikanAnime?.episodes} episodes
@@ -647,27 +648,27 @@ const StreamPlayer = () => {
 
       {/* Anime Info */}
       {(animeInfo || jikanAnime) && (
-        <div className="p-4 border-t border-border">
-          <div className="flex gap-4">
+        <div className="p-3 border-t border-border">
+          <div className="flex gap-3">
             {(animeInfo?.image || jikanAnime?.images?.jpg?.image_url) && (
               <img
                 src={animeInfo?.image || jikanAnime?.images?.jpg?.image_url}
                 alt={displayTitle}
-                className="w-24 h-36 object-cover rounded-lg"
+                className="w-16 h-24 object-cover rounded-md"
               />
             )}
             <div className="flex-1 min-w-0">
-              <h3 className="font-semibold text-lg">{displayTitle}</h3>
+              <h3 className="font-semibold text-sm">{displayTitle}</h3>
               {(animeInfo?.status || jikanAnime?.status) && (
-                <p className="text-sm text-primary">{animeInfo?.status || jikanAnime?.status}</p>
+                <p className="text-xs text-primary">{animeInfo?.status || jikanAnime?.status}</p>
               )}
               {(animeInfo?.totalEpisodes || jikanAnime?.episodes) && (
-                <p className="text-sm text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   {animeInfo?.totalEpisodes || jikanAnime?.episodes} Episodes
                 </p>
               )}
               {(animeInfo?.description || jikanAnime?.synopsis) && (
-                <p className="text-muted-foreground text-sm line-clamp-3 mt-2">
+                <p className="text-muted-foreground text-xs line-clamp-2 mt-1">
                   {animeInfo?.description || jikanAnime?.synopsis}
                 </p>
               )}
@@ -680,7 +681,7 @@ const StreamPlayer = () => {
             description={`Watch ${displayTitle} Episode ${currentEpisode} on AniDel`}
             image={jikanAnime?.images?.jpg?.large_image_url}
             variant="panel"
-            className="mt-4"
+            className="mt-3"
           />
         </div>
       )}

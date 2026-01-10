@@ -474,8 +474,8 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(({
     <div
       ref={containerRef}
       className={cn(
-        "relative bg-black rounded-lg overflow-hidden group",
-        isFullscreen && "fixed inset-0 z-50 rounded-none",
+        "relative bg-black rounded-lg overflow-hidden group max-h-[60vh] lg:max-h-[70vh]",
+        isFullscreen && "fixed inset-0 z-50 rounded-none max-h-none",
         className
       )}
       onMouseMove={handleMouseMove}

@@ -196,17 +196,17 @@ const Downloads = () => {
                 {group.animeTitle}
               </Link>
               
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 {group.episodes
                   .sort((a, b) => a.episodeNumber - b.episodeNumber)
                   .map((episode) => (
                     <div 
                       key={episode.id}
-                      className="flex items-center gap-4 p-3 rounded-xl bg-card border border-border/50 group"
+                      className="flex items-center gap-2.5 p-2 rounded-lg bg-card border border-border/50 group"
                     >
                       {/* Thumbnail */}
                       <div 
-                        className="relative w-24 h-16 rounded-lg overflow-hidden bg-secondary cursor-pointer"
+                        className="relative w-20 h-14 sm:w-24 sm:h-16 rounded-md overflow-hidden bg-secondary cursor-pointer flex-shrink-0"
                         onClick={() => handlePlayDownload(episode.animeId, episode.episodeNumber, episode.animeTitle)}
                       >
                         {episode.thumbnail ? (
@@ -217,30 +217,31 @@ const Downloads = () => {
                           />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary/20 to-accent/20">
-                            <Play className="w-6 h-6 text-muted-foreground" />
+                            <Play className="w-5 h-5 text-muted-foreground" />
                           </div>
                         )}
                         <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <Play className="w-8 h-8 text-white fill-current" />
+                          <Play className="w-6 h-6 text-white fill-current" />
                         </div>
                       </div>
                       
                       {/* Info */}
                       <div className="flex-1 min-w-0">
                         <h4 className="font-medium text-sm truncate">
-                          Episode {episode.episodeNumber}
+                          Ep {episode.episodeNumber}
                           {episode.episodeTitle && `: ${episode.episodeTitle}`}
                         </h4>
-                        <p className="text-xs text-muted-foreground">
-                          {formatBytes(episode.size)} • Downloaded {new Date(episode.downloadedAt).toLocaleDateString()}
+                        <p className="text-[10px] text-muted-foreground">
+                          {formatBytes(episode.size)} • {new Date(episode.downloadedAt).toLocaleDateString()}
                         </p>
                       </div>
                       
                       {/* Actions */}
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1">
                         <Button
                           variant="ghost"
                           size="icon"
+                          className="h-8 w-8"
                           onClick={() => handlePlayDownload(episode.animeId, episode.episodeNumber, episode.animeTitle)}
                         >
                           <Play className="w-4 h-4" />
@@ -248,8 +249,8 @@ const Downloads = () => {
                         <Button
                           variant="ghost"
                           size="icon"
+                          className="h-8 w-8 text-destructive"
                           onClick={() => deleteDownload(episode.id)}
-                          className="text-destructive"
                         >
                           <Trash2 className="w-4 h-4" />
                         </Button>

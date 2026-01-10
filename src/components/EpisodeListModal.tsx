@@ -104,9 +104,9 @@ const EpisodeListModal = ({
         </div>
         
         {/* Episodes */}
-        <div className="p-4 overflow-y-auto max-h-[60vh]">
+        <div className="p-3 overflow-y-auto max-h-[60vh]">
           {viewMode === 'grid' ? (
-            <div className="grid grid-cols-5 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2">
+            <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-1.5">
               {filteredEpisodes.map((ep, index) => {
                 const episodeNumber = index + 1;
                 const isWatched = watchedEpisodes.includes(episodeNumber);
@@ -119,7 +119,7 @@ const EpisodeListModal = ({
                       onClose();
                     }}
                     className={cn(
-                      "aspect-square rounded-lg flex items-center justify-center text-sm font-medium transition-all hover:scale-105",
+                      "aspect-square rounded-md flex items-center justify-center text-xs font-medium transition-all hover:scale-105",
                       isWatched
                         ? "bg-primary/20 text-primary border border-primary/30"
                         : "bg-secondary hover:bg-secondary/80",
@@ -127,7 +127,7 @@ const EpisodeListModal = ({
                     )}
                   >
                     {isWatched ? (
-                      <Check className="w-4 h-4" />
+                      <Check className="w-3 h-3" />
                     ) : (
                       episodeNumber
                     )}
@@ -136,7 +136,7 @@ const EpisodeListModal = ({
               })}
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               {filteredEpisodes.map((ep, index) => {
                 const episodeNumber = index + 1;
                 const isWatched = watchedEpisodes.includes(episodeNumber);
@@ -149,7 +149,7 @@ const EpisodeListModal = ({
                       onClose();
                     }}
                     className={cn(
-                      "w-full p-3 rounded-lg flex items-center gap-3 transition-colors text-left",
+                      "w-full p-2 rounded-md flex items-center gap-2 transition-colors text-left",
                       isWatched
                         ? "bg-primary/10 border border-primary/20"
                         : "bg-secondary hover:bg-secondary/80",
@@ -157,21 +157,21 @@ const EpisodeListModal = ({
                     )}
                   >
                     <div className={cn(
-                      "w-10 h-10 rounded-lg flex items-center justify-center font-semibold",
+                      "w-8 h-8 rounded-md flex items-center justify-center font-semibold text-xs",
                       isWatched ? "bg-primary text-primary-foreground" : "bg-background"
                     )}>
-                      {isWatched ? <Check className="w-5 h-5" /> : episodeNumber}
+                      {isWatched ? <Check className="w-3.5 h-3.5" /> : episodeNumber}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate">
-                        Episode {episodeNumber}
-                        {ep.filler && <span className="ml-2 text-xs text-yellow-500">(Filler)</span>}
+                      <p className="text-sm font-medium truncate">
+                        Ep {episodeNumber}
+                        {ep.filler && <span className="ml-1.5 text-[10px] text-yellow-500">(Filler)</span>}
                       </p>
                       {ep.title && (
-                        <p className="text-sm text-muted-foreground truncate">{ep.title}</p>
+                        <p className="text-xs text-muted-foreground truncate">{ep.title}</p>
                       )}
                     </div>
-                    <Play className="w-5 h-5 text-muted-foreground" />
+                    <Play className="w-4 h-4 text-muted-foreground" />
                   </button>
                 );
               })}
