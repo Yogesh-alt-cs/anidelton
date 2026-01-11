@@ -20,6 +20,9 @@ import Genres from "./pages/Genres";
 import History from "./pages/History";
 import Downloads from "./pages/Downloads";
 import HelpSupport from "./pages/HelpSupport";
+import Manga from "./pages/Manga";
+import MangaDetails from "./pages/MangaDetails";
+import Stream from "./pages/Stream";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -49,6 +52,9 @@ function App() {
                 <Route path="/downloads" element={<Downloads />} />
                 <Route path="/help" element={<HelpSupport />} />
                 <Route path="/settings/help" element={<HelpSupport />} />
+                <Route path="/manga" element={<Manga />} />
+                <Route path="/manga/:id" element={<MangaDetails />} />
+                <Route path="/stream" element={<Stream />} />
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />
               </Routes>

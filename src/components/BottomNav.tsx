@@ -1,4 +1,4 @@
-import { Home, Search, Bookmark, Bell, User, Grid3X3, Download } from 'lucide-react';
+import { Home, Search, User, BookOpen, Film } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useNotifications } from '@/hooks/useNotifications';
@@ -9,9 +9,9 @@ const BottomNav = () => {
 
   const navItems = [
     { icon: Home, label: 'Home', path: '/', badge: 0 },
-    { icon: Grid3X3, label: 'Genres', path: '/genres', badge: 0 },
     { icon: Search, label: 'Search', path: '/search', badge: 0 },
-    { icon: Download, label: 'Downloads', path: '/downloads', badge: 0 },
+    { icon: BookOpen, label: 'Manga', path: '/manga', badge: 0 },
+    { icon: Film, label: 'Stream', path: '/stream', badge: 0 },
     { icon: User, label: 'Profile', path: '/profile', badge: 0 },
   ];
 
