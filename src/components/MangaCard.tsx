@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { MangaSearchResult } from '@/types/manga';
 import { cn } from '@/lib/utils';
-import { BookOpen } from 'lucide-react';
+import { BookOpen, Loader2 } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface MangaCardProps {
   manga: MangaSearchResult;
@@ -9,10 +11,22 @@ interface MangaCardProps {
 }
 
 const MangaCard = ({ manga, size = 'md' }: MangaCardProps) => {
+  const [imageLoaded, setImageLoaded] = useState(false);
+  const [imageError, setImageError] = useState(false);
+
   const sizeClasses = {
     sm: 'w-28 h-40',
     md: 'w-36 h-52',
     lg: 'w-44 h-64',
+  };
+
+  const handleImageLoad = () => {
+    setImageLoaded(true);
+  };
+
+  const handleImageError = () => {
+    setImageError(true);
+    setImageLoaded(true);
   };
 
   return (
@@ -24,14 +38,24 @@ const MangaCard = ({ manga, size = 'md' }: MangaCardProps) => {
         "relative overflow-hidden rounded-xl bg-muted transition-all duration-300 group-hover:scale-105 group-hover:shadow-xl group-hover:shadow-primary/20",
         sizeClasses[size]
       )}>
+        {/* Loading skeleton */}
+        {!imageLoaded && (
+          <div className="absolute inset-0 flex items-center justify-center bg-muted">
+            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+          </div>
+        )}
+        
+        {/* Cover Image */}
         <img
-          src={manga.image}
+          src={imageError ? '/placeholder.svg' : manga.image}
           alt={manga.title}
-          className="w-full h-full object-cover"
+          className={cn(
+            "w-full h-full object-cover transition-opacity duration-300",
+            imageLoaded ? "opacity-100" : "opacity-0"
+          )}
           loading="lazy"
-          onError={(e) => {
-            (e.target as HTMLImageElement).src = '/placeholder.svg';
-          }}
+          onLoad={handleImageLoad}
+          onError={handleImageError}
         />
         
         {/* Gradient Overlay */}
@@ -49,7 +73,9 @@ const MangaCard = ({ manga, size = 'md' }: MangaCardProps) => {
           <span className={cn(
             "text-xs font-medium capitalize",
             manga.status === 'completed' ? 'text-green-400' : 
-            manga.status === 'ongoing' ? 'text-blue-400' : 'text-muted-foreground'
+            manga.status === 'ongoing' ? 'text-blue-400' : 
+            manga.status === 'hiatus' ? 'text-yellow-400' :
+            'text-muted-foreground'
           )}>
             {manga.status}
           </span>

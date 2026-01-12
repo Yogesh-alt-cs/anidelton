@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
   ArrowLeft, 
@@ -10,7 +10,8 @@ import {
   Tag,
   ChevronRight,
   Loader2,
-  AlertCircle
+  AlertCircle,
+  RefreshCw
 } from 'lucide-react';
 import Header from '@/components/Header';
 import BottomNav from '@/components/BottomNav';
@@ -26,28 +27,48 @@ import {
   useReadingProgress,
   useBookmarks
 } from '@/hooks/useManga';
+import { prefetchChapterPages } from '@/lib/mangaApi';
 import { cn } from '@/lib/utils';
 
 const MangaDetails = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   
-  const { data: manga, loading: loadingManga, error } = useMangaDetails(id || null);
-  const { data: chapters, loading: loadingChapters } = useMangaChapters(id || null);
-  const { progress, saveProgress, getProgress } = useReadingProgress();
-  const { bookmarks, addBookmark, removeBookmark, isBookmarked } = useBookmarks();
+  const { data: manga, loading: loadingManga, error, refetch: refetchManga } = useMangaDetails(id || null);
+  const { data: chapters, loading: loadingChapters, refetch: refetchChapters } = useMangaChapters(id || null);
+  const { saveProgress, getProgress } = useReadingProgress();
+  const { addBookmark, removeBookmark, isBookmarked } = useBookmarks();
   
   const [selectedChapterId, setSelectedChapterId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [showReader, setShowReader] = useState(false);
   
-  const { data: pages, loading: loadingPages } = useChapterPages(selectedChapterId);
+  const { data: pages, loading: loadingPages, error: pagesError, retry: retryPages } = useChapterPages(selectedChapterId);
 
   // Get reading progress for this manga
   const readingProgress = getProgress(id || '');
 
+  // Find chapters info
+  const selectedChapterIndex = useMemo(() => 
+    chapters.findIndex(ch => ch.id === selectedChapterId), 
+    [chapters, selectedChapterId]
+  );
+  
+  const hasNextChapter = selectedChapterIndex >= 0 && selectedChapterIndex < chapters.length - 1;
+  const hasPrevChapter = selectedChapterIndex > 0;
+
   // Find the chapter to continue from
   const continueChapter = chapters.find(ch => ch.id === readingProgress?.chapterId);
+
+  // Prefetch next chapter when reading
+  useEffect(() => {
+    if (hasNextChapter && selectedChapterId) {
+      const nextChapter = chapters[selectedChapterIndex + 1];
+      if (nextChapter) {
+        prefetchChapterPages(nextChapter.id);
+      }
+    }
+  }, [selectedChapterId, hasNextChapter, selectedChapterIndex, chapters]);
 
   const handleReadChapter = (chapterId: string) => {
     setSelectedChapterId(chapterId);
@@ -72,6 +93,28 @@ const MangaDetails = () => {
     setSelectedChapterId(null);
   };
 
+  const handleNextChapter = () => {
+    if (hasNextChapter) {
+      const nextChapter = chapters[selectedChapterIndex + 1];
+      setSelectedChapterId(nextChapter.id);
+      setCurrentPage(1);
+      if (id) {
+        saveProgress(id, nextChapter.id, 1);
+      }
+    }
+  };
+
+  const handlePrevChapter = () => {
+    if (hasPrevChapter) {
+      const prevChapter = chapters[selectedChapterIndex - 1];
+      setSelectedChapterId(prevChapter.id);
+      setCurrentPage(1);
+      if (id) {
+        saveProgress(id, prevChapter.id, 1);
+      }
+    }
+  };
+
   const handleBookmark = () => {
     if (!manga || !id) return;
     
@@ -88,15 +131,32 @@ const MangaDetails = () => {
     }
   };
 
+  const handleRetryAll = () => {
+    refetchManga();
+    refetchChapters();
+  };
+
   if (loadingManga) {
     return (
       <div className="min-h-screen bg-background pb-24">
         <Header />
         <main className="pt-20 px-4 max-w-4xl mx-auto">
-          <Skeleton className="w-full h-64 rounded-xl mb-4" />
-          <Skeleton className="h-8 w-3/4 mb-2" />
-          <Skeleton className="h-4 w-1/2 mb-4" />
-          <Skeleton className="h-32 w-full" />
+          <div className="flex flex-col md:flex-row gap-6 animate-pulse">
+            <Skeleton className="w-48 h-72 rounded-xl mx-auto md:mx-0 flex-shrink-0" />
+            <div className="flex-1 space-y-4">
+              <Skeleton className="h-8 w-3/4" />
+              <Skeleton className="h-4 w-1/2" />
+              <div className="flex gap-2">
+                <Skeleton className="h-6 w-20" />
+                <Skeleton className="h-6 w-24" />
+              </div>
+              <Skeleton className="h-24 w-full" />
+              <div className="flex gap-3">
+                <Skeleton className="h-10 w-32" />
+                <Skeleton className="h-10 w-10" />
+              </div>
+            </div>
+          </div>
         </main>
         <BottomNav />
       </div>
@@ -111,11 +171,17 @@ const MangaDetails = () => {
           <div className="text-center py-12">
             <AlertCircle className="w-16 h-16 mx-auto mb-4 text-destructive" />
             <h2 className="text-xl font-bold mb-2">Failed to load manga</h2>
-            <p className="text-muted-foreground mb-4">{error}</p>
-            <Button onClick={() => navigate('/manga')}>
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back to Manga
-            </Button>
+            <p className="text-muted-foreground mb-4">{error || 'Manga not found'}</p>
+            <div className="flex gap-3 justify-center">
+              <Button onClick={handleRetryAll}>
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Retry
+              </Button>
+              <Button variant="outline" onClick={() => navigate('/manga')}>
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Back to Manga
+              </Button>
+            </div>
           </div>
         </main>
         <BottomNav />
@@ -130,10 +196,16 @@ const MangaDetails = () => {
       <MangaReader
         pages={pages}
         loading={loadingPages}
+        error={pagesError}
         currentPage={currentPage}
         onPageChange={handlePageChange}
         onClose={handleCloseReader}
+        onRetry={retryPages}
         chapterTitle={selectedChapter ? `Ch. ${selectedChapter.chapterNumber}` : undefined}
+        onNextChapter={handleNextChapter}
+        onPrevChapter={handlePrevChapter}
+        hasNextChapter={hasNextChapter}
+        hasPrevChapter={hasPrevChapter}
       />
     );
   }
@@ -161,7 +233,7 @@ const MangaDetails = () => {
             <img
               src={manga.image}
               alt={manga.title}
-              className="w-48 h-72 object-cover rounded-xl shadow-lg"
+              className="w-48 h-72 object-cover rounded-xl shadow-lg shadow-primary/10"
               onError={(e) => {
                 (e.target as HTMLImageElement).src = '/placeholder.svg';
               }}
@@ -173,7 +245,7 @@ const MangaDetails = () => {
             <h1 className="text-2xl md:text-3xl font-bold">{manga.title}</h1>
             
             {manga.altTitles.length > 0 && (
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-muted-foreground line-clamp-1">
                 {manga.altTitles.slice(0, 2).join(' • ')}
               </p>
             )}
@@ -183,6 +255,7 @@ const MangaDetails = () => {
               <Badge variant="outline" className={cn(
                 manga.status === 'completed' ? 'border-green-500 text-green-500' :
                 manga.status === 'ongoing' ? 'border-blue-500 text-blue-500' :
+                manga.status === 'hiatus' ? 'border-yellow-500 text-yellow-500' :
                 'border-muted-foreground'
               )}>
                 {manga.status}
@@ -206,8 +279,8 @@ const MangaDetails = () => {
             {/* Authors/Artists */}
             {(manga.authors.length > 0 || manga.artists.length > 0) && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <User className="w-4 h-4" />
-                <span>
+                <User className="w-4 h-4 flex-shrink-0" />
+                <span className="line-clamp-1">
                   {[...new Set([...manga.authors, ...manga.artists])].join(', ')}
                 </span>
               </div>
@@ -216,9 +289,9 @@ const MangaDetails = () => {
             {/* Genres */}
             {manga.genres.length > 0 && (
               <div className="flex items-start gap-2">
-                <Tag className="w-4 h-4 mt-1 text-muted-foreground" />
+                <Tag className="w-4 h-4 mt-1 text-muted-foreground flex-shrink-0" />
                 <div className="flex flex-wrap gap-2">
-                  {manga.genres.map((genre) => (
+                  {manga.genres.slice(0, 6).map((genre) => (
                     <Badge key={genre} variant="secondary" className="text-xs">
                       {genre}
                     </Badge>
@@ -241,15 +314,23 @@ const MangaDetails = () => {
               
               <Button
                 variant="outline"
+                size="icon"
                 onClick={handleBookmark}
               >
                 {isBookmarked(id!) ? (
-                  <BookmarkCheck className="w-4 h-4 text-primary" />
+                  <BookmarkCheck className="w-5 h-5 text-primary" />
                 ) : (
-                  <Bookmark className="w-4 h-4" />
+                  <Bookmark className="w-5 h-5" />
                 )}
               </Button>
             </div>
+            
+            {/* Continue info */}
+            {continueChapter && readingProgress && (
+              <p className="text-xs text-muted-foreground">
+                Continue from Chapter {continueChapter.chapterNumber}, Page {readingProgress.page}
+              </p>
+            )}
           </div>
         </div>
 
@@ -257,7 +338,7 @@ const MangaDetails = () => {
         {manga.description && (
           <div className="space-y-2">
             <h2 className="text-lg font-semibold">Synopsis</h2>
-            <p className="text-sm text-muted-foreground leading-relaxed">
+            <p className="text-sm text-muted-foreground leading-relaxed line-clamp-6">
               {manga.description}
             </p>
           </div>
@@ -265,20 +346,27 @@ const MangaDetails = () => {
 
         {/* Chapters List */}
         <div className="space-y-3">
-          <h2 className="text-lg font-semibold flex items-center gap-2">
-            <BookOpen className="w-5 h-5" />
-            Chapters ({chapters.length})
-          </h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <BookOpen className="w-5 h-5" />
+              Chapters ({chapters.length})
+            </h2>
+            {loadingChapters && (
+              <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+            )}
+          </div>
           
-          {loadingChapters ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="w-6 h-6 animate-spin text-primary" />
+          {loadingChapters && chapters.length === 0 ? (
+            <div className="space-y-2">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <Skeleton key={i} className="h-14 w-full" />
+              ))}
             </div>
           ) : chapters.length > 0 ? (
             <ScrollArea className="h-[400px] rounded-lg border border-border/50">
               <div className="divide-y divide-border/50">
                 {chapters.map((chapter) => {
-                  const isRead = readingProgress?.chapterId === chapter.id;
+                  const isCurrentChapter = readingProgress?.chapterId === chapter.id;
                   
                   return (
                     <button
@@ -286,33 +374,40 @@ const MangaDetails = () => {
                       onClick={() => handleReadChapter(chapter.id)}
                       className={cn(
                         "w-full flex items-center justify-between p-3 hover:bg-muted/50 transition-colors text-left",
-                        isRead && "bg-primary/10"
+                        isCurrentChapter && "bg-primary/10 hover:bg-primary/20"
                       )}
                     >
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate">
+                        <p className={cn(
+                          "font-medium truncate",
+                          isCurrentChapter && "text-primary"
+                        )}>
                           Chapter {chapter.chapterNumber}
                           {chapter.title && ` - ${chapter.title}`}
                         </p>
                         <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
                           {chapter.scanlationGroup && (
-                            <span>{chapter.scanlationGroup}</span>
+                            <span className="truncate max-w-[150px]">{chapter.scanlationGroup}</span>
                           )}
                           {chapter.pages > 0 && (
                             <span>{chapter.pages} pages</span>
                           )}
+                          {isCurrentChapter && readingProgress && (
+                            <span className="text-primary">• Page {readingProgress.page}</span>
+                          )}
                         </div>
                       </div>
-                      <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                      <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0 ml-2" />
                     </button>
                   );
                 })}
               </div>
             </ScrollArea>
           ) : (
-            <div className="text-center py-8 text-muted-foreground">
+            <div className="text-center py-8 text-muted-foreground border border-border/50 rounded-lg">
               <BookOpen className="w-12 h-12 mx-auto mb-4 opacity-50" />
               <p>No English chapters available</p>
+              <p className="text-xs mt-1">Try checking back later</p>
             </div>
           )}
         </div>

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Manga, MangaChapter, MangaPage, MangaSearchResult, ReadingProgress } from '@/types/manga';
 import * as mangaApi from '@/lib/mangaApi';
 
@@ -12,12 +12,20 @@ export const useMangaSearch = (query: string) => {
   const [data, setData] = useState<MangaSearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     if (!query.trim()) {
       setData([]);
+      setLoading(false);
       return;
     }
+
+    // Cancel previous request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
 
     const searchManga = async () => {
       setLoading(true);
@@ -26,6 +34,7 @@ export const useMangaSearch = (query: string) => {
         const results = await mangaApi.searchManga(query);
         setData(results);
       } catch (err) {
+        if (err instanceof Error && err.name === 'AbortError') return;
         setError(err instanceof Error ? err.message : 'Search failed');
         setData([]);
       } finally {
@@ -33,8 +42,13 @@ export const useMangaSearch = (query: string) => {
       }
     };
 
-    const debounce = setTimeout(searchManga, 500);
-    return () => clearTimeout(debounce);
+    const debounce = setTimeout(searchManga, 400);
+    return () => {
+      clearTimeout(debounce);
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
   }, [query]);
 
   return { data, loading, error };
@@ -47,19 +61,22 @@ export const usePopularManga = (limit = 20) => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let mounted = true;
+    
     const fetchData = async () => {
       try {
         setLoading(true);
         const results = await mangaApi.getPopularManga(limit);
-        setData(results);
+        if (mounted) setData(results);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to fetch popular manga');
+        if (mounted) setError(err instanceof Error ? err.message : 'Failed to fetch popular manga');
       } finally {
-        setLoading(false);
+        if (mounted) setLoading(false);
       }
     };
 
     fetchData();
+    return () => { mounted = false; };
   }, [limit]);
 
   return { data, loading, error };
@@ -72,21 +89,57 @@ export const useRecentManga = (limit = 20) => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let mounted = true;
+    
     const fetchData = async () => {
       try {
         setLoading(true);
         const results = await mangaApi.getRecentManga(limit);
-        setData(results);
+        if (mounted) setData(results);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to fetch recent manga');
+        if (mounted) setError(err instanceof Error ? err.message : 'Failed to fetch recent manga');
       } finally {
-        setLoading(false);
+        if (mounted) setLoading(false);
       }
     };
 
-    // Stagger the request
-    const timeout = setTimeout(fetchData, 300);
-    return () => clearTimeout(timeout);
+    // Stagger the request slightly
+    const timeout = setTimeout(fetchData, 200);
+    return () => { 
+      mounted = false;
+      clearTimeout(timeout);
+    };
+  }, [limit]);
+
+  return { data, loading, error };
+};
+
+// Hook for trending manga
+export const useTrendingManga = (limit = 20) => {
+  const [data, setData] = useState<MangaSearchResult[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const results = await mangaApi.getTrendingManga(limit);
+        if (mounted) setData(results);
+      } catch (err) {
+        if (mounted) setError(err instanceof Error ? err.message : 'Failed to fetch trending manga');
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+
+    const timeout = setTimeout(fetchData, 400);
+    return () => { 
+      mounted = false;
+      clearTimeout(timeout);
+    };
   }, [limit]);
 
   return { data, loading, error };
@@ -105,19 +158,22 @@ export const useMangaByGenre = (genre: string, limit = 20) => {
       return;
     }
 
+    let mounted = true;
+
     const fetchData = async () => {
       try {
         setLoading(true);
         const results = await mangaApi.getMangaByGenre(genre, limit);
-        setData(results);
+        if (mounted) setData(results);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to fetch manga');
+        if (mounted) setError(err instanceof Error ? err.message : 'Failed to fetch manga');
       } finally {
-        setLoading(false);
+        if (mounted) setLoading(false);
       }
     };
 
     fetchData();
+    return () => { mounted = false; };
   }, [genre, limit]);
 
   return { data, loading, error };
@@ -129,6 +185,21 @@ export const useMangaDetails = (id: string | null) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const refetch = useCallback(async () => {
+    if (!id) return;
+    
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await mangaApi.getMangaDetails(id);
+      setData(result);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch manga details');
+    } finally {
+      setLoading(false);
+    }
+  }, [id]);
+
   useEffect(() => {
     if (!id) {
       setData(null);
@@ -136,22 +207,10 @@ export const useMangaDetails = (id: string | null) => {
       return;
     }
 
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        const result = await mangaApi.getMangaDetails(id);
-        setData(result);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to fetch manga details');
-      } finally {
-        setLoading(false);
-      }
-    };
+    refetch();
+  }, [id, refetch]);
 
-    fetchData();
-  }, [id]);
-
-  return { data, loading, error };
+  return { data, loading, error, refetch };
 };
 
 // Hook for manga chapters
@@ -160,6 +219,21 @@ export const useMangaChapters = (mangaId: string | null) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const refetch = useCallback(async () => {
+    if (!mangaId) return;
+    
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await mangaApi.getMangaChapters(mangaId);
+      setData(result);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch chapters');
+    } finally {
+      setLoading(false);
+    }
+  }, [mangaId]);
+
   useEffect(() => {
     if (!mangaId) {
       setData([]);
@@ -167,53 +241,48 @@ export const useMangaChapters = (mangaId: string | null) => {
       return;
     }
 
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        const result = await mangaApi.getMangaChapters(mangaId);
-        setData(result);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to fetch chapters');
-      } finally {
-        setLoading(false);
-      }
-    };
+    refetch();
+  }, [mangaId, refetch]);
 
-    fetchData();
-  }, [mangaId]);
-
-  return { data, loading, error };
+  return { data, loading, error, refetch };
 };
 
-// Hook for chapter pages
+// Hook for chapter pages with retry capability
 export const useChapterPages = (chapterId: string | null) => {
   const [data, setData] = useState<MangaPage[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const fetchPages = useCallback(async () => {
     if (!chapterId) {
       setData([]);
       setLoading(false);
       return;
     }
 
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        const result = await mangaApi.getChapterPages(chapterId);
-        setData(result);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to fetch pages');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const result = await mangaApi.getChapterPages(chapterId);
+      setData(result);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch pages');
+      setData([]);
+    } finally {
+      setLoading(false);
+    }
   }, [chapterId]);
 
-  return { data, loading, error };
+  useEffect(() => {
+    fetchPages();
+  }, [fetchPages]);
+
+  const retry = useCallback(() => {
+    fetchPages();
+  }, [fetchPages]);
+
+  return { data, loading, error, retry };
 };
 
 // Hook for reading progress
@@ -221,9 +290,13 @@ export const useReadingProgress = () => {
   const [progress, setProgress] = useState<Record<string, ReadingProgress>>({});
 
   useEffect(() => {
-    const saved = localStorage.getItem(READING_PROGRESS_KEY);
-    if (saved) {
-      setProgress(JSON.parse(saved));
+    try {
+      const saved = localStorage.getItem(READING_PROGRESS_KEY);
+      if (saved) {
+        setProgress(JSON.parse(saved));
+      }
+    } catch (e) {
+      console.error('Failed to load reading progress:', e);
     }
   }, []);
 
@@ -233,7 +306,11 @@ export const useReadingProgress = () => {
         ...prev,
         [mangaId]: { mangaId, chapterId, page, timestamp: Date.now() },
       };
-      localStorage.setItem(READING_PROGRESS_KEY, JSON.stringify(updated));
+      try {
+        localStorage.setItem(READING_PROGRESS_KEY, JSON.stringify(updated));
+      } catch (e) {
+        console.error('Failed to save reading progress:', e);
+      }
       return updated;
     });
   }, []);
@@ -242,7 +319,20 @@ export const useReadingProgress = () => {
     return progress[mangaId] || null;
   }, [progress]);
 
-  return { progress, saveProgress, getProgress };
+  const clearProgress = useCallback((mangaId: string) => {
+    setProgress(prev => {
+      const updated = { ...prev };
+      delete updated[mangaId];
+      try {
+        localStorage.setItem(READING_PROGRESS_KEY, JSON.stringify(updated));
+      } catch (e) {
+        console.error('Failed to clear reading progress:', e);
+      }
+      return updated;
+    });
+  }, []);
+
+  return { progress, saveProgress, getProgress, clearProgress };
 };
 
 // Hook for bookmarks
@@ -250,17 +340,25 @@ export const useBookmarks = () => {
   const [bookmarks, setBookmarks] = useState<MangaSearchResult[]>([]);
 
   useEffect(() => {
-    const saved = localStorage.getItem(BOOKMARKS_KEY);
-    if (saved) {
-      setBookmarks(JSON.parse(saved));
+    try {
+      const saved = localStorage.getItem(BOOKMARKS_KEY);
+      if (saved) {
+        setBookmarks(JSON.parse(saved));
+      }
+    } catch (e) {
+      console.error('Failed to load bookmarks:', e);
     }
   }, []);
 
   const addBookmark = useCallback((manga: MangaSearchResult) => {
     setBookmarks(prev => {
       if (prev.some(b => b.id === manga.id)) return prev;
-      const updated = [...prev, manga];
-      localStorage.setItem(BOOKMARKS_KEY, JSON.stringify(updated));
+      const updated = [manga, ...prev];
+      try {
+        localStorage.setItem(BOOKMARKS_KEY, JSON.stringify(updated));
+      } catch (e) {
+        console.error('Failed to save bookmark:', e);
+      }
       return updated;
     });
   }, []);
@@ -268,7 +366,11 @@ export const useBookmarks = () => {
   const removeBookmark = useCallback((mangaId: string) => {
     setBookmarks(prev => {
       const updated = prev.filter(b => b.id !== mangaId);
-      localStorage.setItem(BOOKMARKS_KEY, JSON.stringify(updated));
+      try {
+        localStorage.setItem(BOOKMARKS_KEY, JSON.stringify(updated));
+      } catch (e) {
+        console.error('Failed to remove bookmark:', e);
+      }
       return updated;
     });
   }, []);
@@ -285,26 +387,62 @@ export const useRecentSearches = () => {
   const [searches, setSearches] = useState<string[]>([]);
 
   useEffect(() => {
-    const saved = localStorage.getItem(RECENT_SEARCHES_KEY);
-    if (saved) {
-      setSearches(JSON.parse(saved));
+    try {
+      const saved = localStorage.getItem(RECENT_SEARCHES_KEY);
+      if (saved) {
+        setSearches(JSON.parse(saved));
+      }
+    } catch (e) {
+      console.error('Failed to load recent searches:', e);
     }
   }, []);
 
   const addSearch = useCallback((query: string) => {
     if (!query.trim()) return;
     setSearches(prev => {
-      const filtered = prev.filter(s => s !== query);
+      const filtered = prev.filter(s => s.toLowerCase() !== query.toLowerCase());
       const updated = [query, ...filtered].slice(0, 10);
-      localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(updated));
+      try {
+        localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(updated));
+      } catch (e) {
+        console.error('Failed to save search:', e);
+      }
       return updated;
     });
   }, []);
 
   const clearSearches = useCallback(() => {
     setSearches([]);
-    localStorage.removeItem(RECENT_SEARCHES_KEY);
+    try {
+      localStorage.removeItem(RECENT_SEARCHES_KEY);
+    } catch (e) {
+      console.error('Failed to clear searches:', e);
+    }
   }, []);
 
   return { searches, addSearch, clearSearches };
+};
+
+// Hook for continue reading
+export const useContinueReading = () => {
+  const { progress } = useReadingProgress();
+  const [continueItems, setContinueItems] = useState<Array<{
+    mangaId: string;
+    chapterId: string;
+    page: number;
+    timestamp: number;
+    manga?: MangaSearchResult;
+  }>>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const items = Object.values(progress)
+      .sort((a, b) => b.timestamp - a.timestamp)
+      .slice(0, 10);
+    
+    setContinueItems(items);
+    setLoading(false);
+  }, [progress]);
+
+  return { items: continueItems, loading };
 };
