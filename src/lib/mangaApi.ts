@@ -3,8 +3,14 @@ import { supabase } from '@/integrations/supabase/client';
 
 const MANGADEX_UPLOADS = 'https://uploads.mangadex.org';
 
-// Image proxy for hotlink restrictions
-const IMAGE_PROXIES = [
+// Build the backend image proxy URL
+const getBackendImageProxyUrl = (): string => {
+  const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID || 'pjohoasnvzyxjvnhxumi';
+  return `https://${projectId}.supabase.co/functions/v1/manga-image-proxy`;
+};
+
+// Fallback client-side proxies (used if backend proxy fails)
+const FALLBACK_IMAGE_PROXIES = [
   'https://wsrv.nl/?url=',
   'https://images.weserv.nl/?url=',
 ];
@@ -19,32 +25,51 @@ const CHAPTER_CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
 
 const logFetchFailure = (context: string, meta: Record<string, unknown>, err: unknown) => {
   const message = err instanceof Error ? err.message : String(err);
-  // Intentionally verbose for future debugging (requested)
   console.error(`[mangaApi] ${context} failed`, { ...meta, message, err });
 };
 
-// Proxy image URL to avoid hotlink restrictions
+// Proxy cover image URL via backend for reliable loading
 export const proxyImageUrl = (url: string): string => {
   if (!url || url === '/placeholder.svg') return '/placeholder.svg';
 
   // Already proxied
-  if (url.startsWith('https://wsrv.nl') || url.startsWith('https://images.weserv.nl')) {
+  if (url.includes('manga-image-proxy') || url.startsWith('https://wsrv.nl') || url.startsWith('https://images.weserv.nl')) {
     return url;
   }
 
-  // Covers: smaller + faster
-  return `${IMAGE_PROXIES[0]}${encodeURIComponent(url)}&w=512&q=80`;
+  // Use backend proxy with size param
+  return `${getBackendImageProxyUrl()}?url=${encodeURIComponent(url)}`;
 };
 
-// Proxy higher quality image for reader
+// Get fallback URL for when backend proxy fails
+export const getFallbackImageUrl = (originalUrl: string): string => {
+  return `${FALLBACK_IMAGE_PROXIES[0]}${encodeURIComponent(originalUrl)}&w=512&q=80`;
+};
+
+// Proxy higher quality image for reader via backend
 export const proxyReaderImageUrl = (url: string): string => {
   if (!url || url === '/placeholder.svg') return '/placeholder.svg';
 
-  if (url.startsWith('https://wsrv.nl') || url.startsWith('https://images.weserv.nl')) {
+  if (url.includes('manga-image-proxy') || url.startsWith('https://wsrv.nl') || url.startsWith('https://images.weserv.nl')) {
     return url;
   }
 
-  return `${IMAGE_PROXIES[0]}${encodeURIComponent(url)}&q=90`;
+  return `${getBackendImageProxyUrl()}?url=${encodeURIComponent(url)}`;
+};
+
+// Get fallback reader URL
+export const getFallbackReaderImageUrl = (originalUrl: string): string => {
+  return `${FALLBACK_IMAGE_PROXIES[0]}${encodeURIComponent(originalUrl)}&q=90`;
+};
+
+// Extract original URL from proxied URL
+export const extractOriginalUrl = (proxiedUrl: string): string | null => {
+  try {
+    const u = new URL(proxiedUrl);
+    return u.searchParams.get('url') ? decodeURIComponent(u.searchParams.get('url')!) : null;
+  } catch {
+    return null;
+  }
 };
 
 type ProxyParams = Record<string, string | number | boolean | Array<string | number | boolean> | null | undefined>;
