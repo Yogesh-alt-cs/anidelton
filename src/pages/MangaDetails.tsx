@@ -27,7 +27,7 @@ import {
   useReadingProgress,
   useBookmarks
 } from '@/hooks/useManga';
-import { prefetchChapterPages } from '@/lib/mangaApi';
+import { prefetchChapterPages, extractOriginalUrl, getFallbackImageUrl } from '@/lib/mangaApi';
 import { cn } from '@/lib/utils';
 
 const MangaDetails = () => {
@@ -237,18 +237,15 @@ const MangaDetails = () => {
               onError={(e) => {
                 const img = e.currentTarget;
                 const src = img.currentSrc || img.src;
-                try {
-                  const u = new URL(src);
-                  const original = u.searchParams.get('url');
-                  const tried = img.dataset.fallback === '1';
-                  if (!tried && original) {
-                    img.dataset.fallback = '1';
-                    img.src = `https://images.weserv.nl/?url=${encodeURIComponent(decodeURIComponent(original))}&w=512&q=80`;
-                    return;
-                  }
-                } catch {
-                  // ignore
+                const tried = img.dataset.fallback === '1';
+                
+                const original = extractOriginalUrl(src);
+                if (!tried && original) {
+                  img.dataset.fallback = '1';
+                  img.src = getFallbackImageUrl(original);
+                  return;
                 }
+                
                 img.src = '/placeholder.svg';
               }}
             />

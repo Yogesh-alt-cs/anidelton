@@ -12,3 +12,6 @@ verify_jwt = false
 [functions.mangadex-proxy]
 verify_jwt = false
 
+[functions.manga-image-proxy]
+verify_jwt = false
+

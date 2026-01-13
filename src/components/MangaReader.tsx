@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { MangaPage } from '@/types/manga';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
+import { extractOriginalUrl, getFallbackReaderImageUrl } from '@/lib/mangaApi';
 import { 
   ChevronLeft, 
   ChevronRight, 
@@ -17,7 +17,8 @@ import {
   Maximize,
   Minimize,
   RefreshCw,
-  AlertCircle
+  AlertCircle,
+  ImageOff
 } from 'lucide-react';
 
 interface MangaReaderProps {
@@ -36,6 +37,8 @@ interface MangaReaderProps {
 }
 
 type ReadingMode = 'page' | 'scroll';
+
+type PageLoadState = 'loading' | 'loaded' | 'error';
 
 const MangaReader = ({
   pages,
@@ -59,9 +62,20 @@ const MangaReader = ({
   const [imageError, setImageError] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [loadedPages, setLoadedPages] = useState<Set<number>>(new Set());
+  
+  // Scroll mode: track load state per page
+  const [scrollPageStates, setScrollPageStates] = useState<Record<number, PageLoadState>>({});
+  const [failedScrollPages, setFailedScrollPages] = useState<Set<number>>(new Set());
+  
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const controlsTimeoutRef = useRef<NodeJS.Timeout>();
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Reset scroll page states when pages change
+  useEffect(() => {
+    setScrollPageStates({});
+    setFailedScrollPages(new Set());
+  }, [pages]);
 
   // Preload adjacent pages
   useEffect(() => {
@@ -186,12 +200,12 @@ const MangaReader = ({
     if (mode === 'scroll' && scrollContainerRef.current) {
       const container = scrollContainerRef.current;
       const handleScroll = () => {
-        const images = container.querySelectorAll('img[data-page]');
+        const images = container.querySelectorAll('[data-page]');
         let currentVisible = 1;
         
-        images.forEach((img) => {
-          const rect = img.getBoundingClientRect();
-          const pageNum = parseInt(img.getAttribute('data-page') || '1');
+        images.forEach((el) => {
+          const rect = el.getBoundingClientRect();
+          const pageNum = parseInt(el.getAttribute('data-page') || '1');
           if (rect.top <= window.innerHeight / 2) {
             currentVisible = pageNum;
           }
@@ -221,9 +235,49 @@ const MangaReader = ({
     // Force reload by adding timestamp
     const img = document.querySelector(`img[data-current-page="${currentPage}"]`) as HTMLImageElement;
     if (img) {
-      const src = img.src.split('?')[0];
-      img.src = `${src}?t=${Date.now()}`;
+      const src = img.src.split('?t=')[0];
+      img.src = `${src}${src.includes('?') ? '&' : '?'}t=${Date.now()}`;
     }
+  };
+
+  // Scroll mode: handle page load state
+  const handleScrollPageLoad = (pageNum: number) => {
+    setScrollPageStates(prev => ({ ...prev, [pageNum]: 'loaded' }));
+    setFailedScrollPages(prev => {
+      const next = new Set(prev);
+      next.delete(pageNum);
+      return next;
+    });
+  };
+
+  const handleScrollPageError = (pageNum: number) => {
+    setScrollPageStates(prev => ({ ...prev, [pageNum]: 'error' }));
+    setFailedScrollPages(prev => new Set(prev).add(pageNum));
+  };
+
+  const retryScrollPage = (pageNum: number, imgElement: HTMLImageElement) => {
+    setScrollPageStates(prev => ({ ...prev, [pageNum]: 'loading' }));
+    const originalSrc = pages[pageNum - 1]?.img;
+    if (originalSrc) {
+      // Try fallback proxy
+      const original = extractOriginalUrl(originalSrc);
+      if (original) {
+        imgElement.src = getFallbackReaderImageUrl(original);
+      } else {
+        // Just reload with timestamp
+        const src = originalSrc.split('?t=')[0];
+        imgElement.src = `${src}${src.includes('?') ? '&' : '?'}t=${Date.now()}`;
+      }
+    }
+  };
+
+  const retryAllFailedPages = () => {
+    failedScrollPages.forEach(pageNum => {
+      const img = document.querySelector(`img[data-page="${pageNum}"]`) as HTMLImageElement;
+      if (img) {
+        retryScrollPage(pageNum, img);
+      }
+    });
   };
 
   // Click to navigate (tap zones)
@@ -353,6 +407,20 @@ const MangaReader = ({
               {chapterTitle && `${chapterTitle} • `}
               {currentPage} / {pages.length}
             </span>
+            {mode === 'scroll' && failedScrollPages.size > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={retryAllFailedPages}
+                className={cn(
+                  "text-xs",
+                  darkMode ? "text-red-400 hover:bg-red-500/20" : "text-red-600 hover:bg-red-100"
+                )}
+              >
+                <RefreshCw className="w-3 h-3 mr-1" />
+                Retry {failedScrollPages.size} failed
+              </Button>
+            )}
           </div>
 
           <div className="flex items-center gap-1 sm:gap-2">
@@ -468,17 +536,15 @@ const MangaReader = ({
                   const img = e.currentTarget;
                   const src = img.currentSrc || img.src;
                   const tried = img.dataset.fallback === '1';
-                  try {
-                    const u = new URL(src);
-                    const original = u.searchParams.get('url');
-                    if (!tried && original) {
-                      img.dataset.fallback = '1';
-                      img.src = `https://images.weserv.nl/?url=${encodeURIComponent(decodeURIComponent(original))}&q=90`;
-                      return;
-                    }
-                  } catch {
-                    // ignore
+                  
+                  // Try fallback proxy
+                  const original = extractOriginalUrl(src);
+                  if (!tried && original) {
+                    img.dataset.fallback = '1';
+                    img.src = getFallbackReaderImageUrl(original);
+                    return;
                   }
+                  
                   handleImageError();
                 }}
                 draggable={false}
@@ -540,34 +606,80 @@ const MangaReader = ({
           className="flex-1 overflow-y-auto scroll-smooth"
         >
           <div className="flex flex-col items-center gap-1 py-16">
-            {pages.map((page, index) => (
-              <img
-                key={page.page}
-                data-page={page.page}
-                src={page.img}
-                alt={`Page ${index + 1}`}
-                className="max-w-full w-auto"
-                style={{ maxWidth: `${zoom}%` }}
-                loading="lazy"
-                onError={(e) => {
-                  const img = e.currentTarget;
-                  const src = img.currentSrc || img.src;
-                  const tried = img.dataset.fallback === '1';
-                  try {
-                    const u = new URL(src);
-                    const original = u.searchParams.get('url');
-                    if (!tried && original) {
-                      img.dataset.fallback = '1';
-                      img.src = `https://images.weserv.nl/?url=${encodeURIComponent(decodeURIComponent(original))}&q=90`;
-                      return;
-                    }
-                  } catch {
-                    // ignore
-                  }
-                  img.style.display = 'none';
-                }}
-              />
-            ))}
+            {pages.map((page, index) => {
+              const pageNum = page.page;
+              const state = scrollPageStates[pageNum] || 'loading';
+              
+              return (
+                <div key={pageNum} data-page={pageNum} className="relative w-full flex flex-col items-center">
+                  {state === 'error' ? (
+                    <div 
+                      className={cn(
+                        "flex flex-col items-center justify-center gap-3 py-12 px-6 rounded-lg my-2",
+                        darkMode ? "bg-white/5" : "bg-black/5"
+                      )}
+                      style={{ minHeight: '200px', width: `${zoom}%`, maxWidth: '100%' }}
+                    >
+                      <ImageOff className={cn("w-12 h-12 opacity-50", darkMode ? "text-white" : "text-black")} />
+                      <p className={cn("text-sm", darkMode ? "text-gray-400" : "text-gray-600")}>
+                        Page {pageNum} failed to load
+                      </p>
+                      <Button 
+                        size="sm" 
+                        variant="outline"
+                        onClick={() => {
+                          const img = document.querySelector(`img[data-scroll-page="${pageNum}"]`) as HTMLImageElement;
+                          if (img) {
+                            retryScrollPage(pageNum, img);
+                          }
+                        }}
+                      >
+                        <RefreshCw className="w-4 h-4 mr-2" />
+                        Retry
+                      </Button>
+                    </div>
+                  ) : (
+                    <>
+                      {state === 'loading' && (
+                        <div 
+                          className="absolute inset-0 flex items-center justify-center"
+                          style={{ minHeight: '200px' }}
+                        >
+                          <Loader2 className={cn("w-6 h-6 animate-spin", darkMode ? "text-white/50" : "text-black/30")} />
+                        </div>
+                      )}
+                      <img
+                        data-scroll-page={pageNum}
+                        src={page.img}
+                        alt={`Page ${index + 1}`}
+                        className={cn(
+                          "max-w-full w-auto transition-opacity duration-200",
+                          state === 'loaded' ? 'opacity-100' : 'opacity-0'
+                        )}
+                        style={{ maxWidth: `${zoom}%` }}
+                        loading="lazy"
+                        onLoad={() => handleScrollPageLoad(pageNum)}
+                        onError={(e) => {
+                          const img = e.currentTarget;
+                          const src = img.currentSrc || img.src;
+                          const tried = img.dataset.fallback === '1';
+                          
+                          // Try fallback proxy
+                          const original = extractOriginalUrl(src);
+                          if (!tried && original) {
+                            img.dataset.fallback = '1';
+                            img.src = getFallbackReaderImageUrl(original);
+                            return;
+                          }
+                          
+                          handleScrollPageError(pageNum);
+                        }}
+                      />
+                    </>
+                  )}
+                </div>
+              );
+            })}
             
             {/* End of chapter navigation */}
             {hasNextChapter && onNextChapter && (

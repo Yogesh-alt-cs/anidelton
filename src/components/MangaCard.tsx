@@ -3,24 +3,12 @@ import { Link } from 'react-router-dom';
 import { MangaSearchResult } from '@/types/manga';
 import { cn } from '@/lib/utils';
 import { BookOpen, Loader2 } from 'lucide-react';
+import { extractOriginalUrl, getFallbackImageUrl } from '@/lib/mangaApi';
 
 interface MangaCardProps {
   manga: MangaSearchResult;
   size?: 'sm' | 'md' | 'lg';
 }
-
-const extractOriginalUrlFromProxy = (src: string): string | null => {
-  try {
-    const u = new URL(src);
-    const original = u.searchParams.get('url');
-    return original ? decodeURIComponent(original) : null;
-  } catch {
-    return null;
-  }
-};
-
-const buildFallbackCoverProxy = (originalUrl: string) =>
-  `https://images.weserv.nl/?url=${encodeURIComponent(originalUrl)}&w=512&q=80`;
 
 const MangaCard = ({ manga, size = 'md' }: MangaCardProps) => {
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -48,12 +36,12 @@ const MangaCard = ({ manga, size = 'md' }: MangaCardProps) => {
   const handleImageError = (e: any) => {
     const currentSrc: string = e?.currentTarget?.currentSrc || e?.currentTarget?.src || imgSrc;
 
-    // 1) Try a second proxy (prevents broken covers if primary proxy is blocked)
+    // 1) Try a fallback proxy (prevents broken covers if backend proxy is blocked)
     if (fallbackStage === 0) {
-      const original = extractOriginalUrlFromProxy(currentSrc) || extractOriginalUrlFromProxy(imgSrc);
+      const original = extractOriginalUrl(currentSrc) || extractOriginalUrl(imgSrc);
       if (original) {
         setFallbackStage(1);
-        setImgSrc(buildFallbackCoverProxy(original));
+        setImgSrc(getFallbackImageUrl(original));
         return;
       }
     }
