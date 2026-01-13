@@ -235,7 +235,21 @@ const MangaDetails = () => {
               alt={manga.title}
               className="w-48 h-72 object-cover rounded-xl shadow-lg shadow-primary/10"
               onError={(e) => {
-                (e.target as HTMLImageElement).src = '/placeholder.svg';
+                const img = e.currentTarget;
+                const src = img.currentSrc || img.src;
+                try {
+                  const u = new URL(src);
+                  const original = u.searchParams.get('url');
+                  const tried = img.dataset.fallback === '1';
+                  if (!tried && original) {
+                    img.dataset.fallback = '1';
+                    img.src = `https://images.weserv.nl/?url=${encodeURIComponent(decodeURIComponent(original))}&w=512&q=80`;
+                    return;
+                  }
+                } catch {
+                  // ignore
+                }
+                img.src = '/placeholder.svg';
               }}
             />
           </div>

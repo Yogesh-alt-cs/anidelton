@@ -8,3 +8,7 @@ verify_jwt = false
 
 [functions.check-new-episodes]
 verify_jwt = false
+
+[functions.mangadex-proxy]
+verify_jwt = false
+

@@ -145,14 +145,44 @@ export const useTrendingManga = (limit = 20) => {
   return { data, loading, error };
 };
 
-// Hook for manga by genre
-export const useMangaByGenre = (genre: string, limit = 20) => {
+// Hook for manga genres (fetched from MangaDex tags)
+export const useMangaGenres = () => {
+  const [data, setData] = useState<mangaApi.MangaGenre[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const results = await mangaApi.getMangaGenres();
+        if (mounted) setData(results);
+      } catch (err) {
+        if (mounted) setError(err instanceof Error ? err.message : 'Failed to fetch genres');
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+
+    fetchData();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  return { data, loading, error };
+};
+
+// Hook for manga by genre (tag id)
+export const useMangaByGenre = (tagId: string, limit = 20) => {
   const [data, setData] = useState<MangaSearchResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!genre) {
+    if (!tagId) {
       setData([]);
       setLoading(false);
       return;
@@ -163,7 +193,7 @@ export const useMangaByGenre = (genre: string, limit = 20) => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const results = await mangaApi.getMangaByGenre(genre, limit);
+        const results = await mangaApi.getMangaByGenreTag(tagId, limit);
         if (mounted) setData(results);
       } catch (err) {
         if (mounted) setError(err instanceof Error ? err.message : 'Failed to fetch manga');
@@ -173,8 +203,10 @@ export const useMangaByGenre = (genre: string, limit = 20) => {
     };
 
     fetchData();
-    return () => { mounted = false; };
-  }, [genre, limit]);
+    return () => {
+      mounted = false;
+    };
+  }, [tagId, limit]);
 
   return { data, loading, error };
 };
