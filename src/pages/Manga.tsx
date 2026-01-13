@@ -13,21 +13,24 @@ import {
   useTrendingManga,
   useMangaSearch,
   useMangaByGenre,
+  useMangaGenres,
   useRecentSearches,
   useBookmarks
 } from '@/hooks/useManga';
-import { MANGA_GENRES } from '@/lib/mangaApi';
 import { cn } from '@/lib/utils';
+
+type SelectedGenre = { id: string; name: string };
 
 const Manga = () => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedGenre, setSelectedGenre] = useState<string | null>(null);
+  const [selectedGenre, setSelectedGenre] = useState<SelectedGenre | null>(null);
   
   const { data: popularManga, loading: loadingPopular, error: popularError } = usePopularManga(12);
   const { data: recentManga, loading: loadingRecent, error: recentError } = useRecentManga(12);
   const { data: trendingManga, loading: loadingTrending } = useTrendingManga(12);
   const { data: searchResults, loading: loadingSearch, error: searchError } = useMangaSearch(searchQuery);
-  const { data: genreManga, loading: loadingGenre, error: genreError } = useMangaByGenre(selectedGenre || '', 20);
+  const { data: genres, loading: loadingGenres } = useMangaGenres();
+  const { data: genreManga, loading: loadingGenre, error: genreError } = useMangaByGenre(selectedGenre?.id || '', 20);
   const { searches, addSearch, clearSearches } = useRecentSearches();
   const { bookmarks } = useBookmarks();
 
@@ -39,8 +42,8 @@ const Manga = () => {
     }
   };
 
-  const handleGenreSelect = (genre: string) => {
-    setSelectedGenre(genre === selectedGenre ? null : genre);
+  const handleGenreSelect = (genre: SelectedGenre) => {
+    setSelectedGenre((prev) => (prev?.id === genre.id ? null : genre));
     setSearchQuery('');
   };
 
@@ -117,21 +120,27 @@ const Manga = () => {
             <span>Genres</span>
           </div>
           <div className="flex flex-wrap gap-2">
-            {MANGA_GENRES.map((genre) => (
-              <Badge
-                key={genre}
-                variant={selectedGenre === genre ? "default" : "outline"}
-                className={cn(
-                  "cursor-pointer transition-all",
-                  selectedGenre === genre 
-                    ? "bg-primary text-primary-foreground" 
-                    : "hover:bg-primary/20"
-                )}
-                onClick={() => handleGenreSelect(genre)}
-              >
-                {genre}
-              </Badge>
-            ))}
+            {loadingGenres ? (
+              Array.from({ length: 12 }).map((_, i) => (
+                <Badge key={i} variant="outline" className="opacity-60">
+                  Loading
+                </Badge>
+              ))
+            ) : (
+              genres.map((genre) => (
+                <Badge
+                  key={genre.id}
+                  variant={selectedGenre?.id === genre.id ? "default" : "outline"}
+                  className={cn(
+                    "cursor-pointer transition-all",
+                    selectedGenre?.id === genre.id ? "bg-primary text-primary-foreground" : "hover:bg-primary/20"
+                  )}
+                  onClick={() => handleGenreSelect(genre)}
+                >
+                  {genre.name}
+                </Badge>
+              ))
+            )}
           </div>
         </div>
 
@@ -173,7 +182,7 @@ const Manga = () => {
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold flex items-center gap-2">
                 <TrendingUp className="w-5 h-5" />
-                {selectedGenre} Manga
+                {selectedGenre?.name} Manga
               </h2>
               <Button 
                 variant="ghost" 
@@ -202,7 +211,7 @@ const Manga = () => {
             ) : (
               <div className="text-center py-12 text-muted-foreground">
                 <BookOpen className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                <p>No manga found for {selectedGenre}</p>
+                <p>No manga found for {selectedGenre?.name}</p>
               </div>
             )}
           </div>

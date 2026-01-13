@@ -464,7 +464,23 @@ const MangaReader = ({
                   imageLoading ? "opacity-0" : "opacity-100"
                 )}
                 onLoad={handleImageLoad}
-                onError={handleImageError}
+                onError={(e) => {
+                  const img = e.currentTarget;
+                  const src = img.currentSrc || img.src;
+                  const tried = img.dataset.fallback === '1';
+                  try {
+                    const u = new URL(src);
+                    const original = u.searchParams.get('url');
+                    if (!tried && original) {
+                      img.dataset.fallback = '1';
+                      img.src = `https://images.weserv.nl/?url=${encodeURIComponent(decodeURIComponent(original))}&q=90`;
+                      return;
+                    }
+                  } catch {
+                    // ignore
+                  }
+                  handleImageError();
+                }}
                 draggable={false}
               />
             )}
@@ -534,7 +550,21 @@ const MangaReader = ({
                 style={{ maxWidth: `${zoom}%` }}
                 loading="lazy"
                 onError={(e) => {
-                  (e.target as HTMLImageElement).style.display = 'none';
+                  const img = e.currentTarget;
+                  const src = img.currentSrc || img.src;
+                  const tried = img.dataset.fallback === '1';
+                  try {
+                    const u = new URL(src);
+                    const original = u.searchParams.get('url');
+                    if (!tried && original) {
+                      img.dataset.fallback = '1';
+                      img.src = `https://images.weserv.nl/?url=${encodeURIComponent(decodeURIComponent(original))}&q=90`;
+                      return;
+                    }
+                  } catch {
+                    // ignore
+                  }
+                  img.style.display = 'none';
                 }}
               />
             ))}
