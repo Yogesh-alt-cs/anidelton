@@ -18,6 +18,7 @@ import Header from '@/components/Header';
 import BottomNav from '@/components/BottomNav';
 import MangaReader from '@/components/MangaReader';
 import MangaDownloadButton from '@/components/MangaDownloadButton';
+import BatchDownloadButton from '@/components/BatchDownloadButton';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -364,9 +365,19 @@ const MangaDetails = () => {
               <BookOpen className="w-5 h-5" />
               Chapters ({chapters.length})
             </h2>
-            {loadingChapters && (
-              <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-            )}
+            <div className="flex items-center gap-2">
+              {chapters.length > 0 && (
+                <BatchDownloadButton
+                  mangaId={id!}
+                  mangaTitle={manga.title}
+                  chapters={chapters}
+                  coverImage={manga.image}
+                />
+              )}
+              {loadingChapters && (
+                <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+              )}
+            </div>
           </div>
           
           {loadingChapters && chapters.length === 0 ? (

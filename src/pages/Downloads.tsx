@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Download, Trash2, Play, HardDrive, AlertCircle, WifiOff, BookOpen, Video } from 'lucide-react';
+import { ArrowLeft, Download, Trash2, Play, HardDrive, AlertCircle, WifiOff, BookOpen, Video, Loader2, Trash } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useOfflineDownload } from '@/hooks/useOfflineDownload';
 import { useMangaOfflineDownload, DownloadedMangaChapter } from '@/hooks/useMangaOfflineDownload';
+import { useStorageCleanup } from '@/hooks/useDownloadManager';
 import BottomNav from '@/components/BottomNav';
 import OfflinePlayer from '@/components/OfflinePlayer';
 import OfflineMangaReader from '@/components/OfflineMangaReader';
@@ -30,14 +31,19 @@ const Downloads = () => {
     clearAllDownloads: clearAllMangaDownloads
   } = useMangaOfflineDownload();
   
+  const { autoCleanup } = useStorageCleanup();
+  
   const [storageInfo, setStorageInfo] = useState<{ used: number; quota: number; percentage: number } | null>(null);
   const [playingEpisode, setPlayingEpisode] = useState<{ blobUrl: string; title: string; subtitle: string } | null>(null);
   const [readingChapter, setReadingChapter] = useState<{ chapter: DownloadedMangaChapter; currentPage: number } | null>(null);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [activeTab, setActiveTab] = useState<'anime' | 'manga'>('anime');
+  const [isCleaningUp, setIsCleaningUp] = useState(false);
 
   const loading = loadingAnime || loadingManga;
   const totalDownloads = animeDownloads.length + mangaDownloads.length;
+  const isStorageLow = storageInfo ? storageInfo.percentage >= 90 : false;
+  const isStorageCritical = storageInfo ? storageInfo.percentage >= 95 : false;
 
   useEffect(() => {
     const loadStorage = async () => {
@@ -213,11 +219,46 @@ const Downloads = () => {
               <HardDrive className="w-4 h-4 text-muted-foreground" />
               <span>Storage Used</span>
             </div>
-            <span className="text-sm text-muted-foreground">
+            <span className={cn(
+              "text-sm",
+              isStorageCritical ? "text-red-500" : isStorageLow ? "text-yellow-500" : "text-muted-foreground"
+            )}>
               {formatBytes(storageInfo.used)} / {formatBytes(storageInfo.quota)}
             </span>
           </div>
-          <Progress value={storageInfo.percentage} className="h-2" />
+          <Progress 
+            value={storageInfo.percentage} 
+            className={cn(
+              "h-2",
+              isStorageCritical && "[&>div]:bg-red-500",
+              isStorageLow && !isStorageCritical && "[&>div]:bg-yellow-500"
+            )}
+          />
+          {isStorageLow && (
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="w-full mt-3"
+              onClick={async () => {
+                setIsCleaningUp(true);
+                try {
+                  await autoCleanup(75);
+                  const info = await getStorageUsage();
+                  setStorageInfo(info);
+                } finally {
+                  setIsCleaningUp(false);
+                }
+              }}
+              disabled={isCleaningUp}
+            >
+              {isCleaningUp ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Trash className="w-4 h-4 mr-2" />
+              )}
+              Clean Up Old Downloads
+            </Button>
+          )}
         </div>
       )}
 
