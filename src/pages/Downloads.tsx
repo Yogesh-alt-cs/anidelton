@@ -1,27 +1,43 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Download, Trash2, Play, HardDrive, AlertCircle, WifiOff } from 'lucide-react';
+import { ArrowLeft, Download, Trash2, Play, HardDrive, AlertCircle, WifiOff, BookOpen, Video } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useOfflineDownload } from '@/hooks/useOfflineDownload';
+import { useMangaOfflineDownload, DownloadedMangaChapter } from '@/hooks/useMangaOfflineDownload';
 import BottomNav from '@/components/BottomNav';
 import OfflinePlayer from '@/components/OfflinePlayer';
+import OfflineMangaReader from '@/components/OfflineMangaReader';
 import { cn } from '@/lib/utils';
 
 const Downloads = () => {
   const navigate = useNavigate();
   const { 
-    downloads, 
-    loading, 
-    deleteDownload, 
+    downloads: animeDownloads, 
+    loading: loadingAnime, 
+    deleteDownload: deleteAnimeDownload, 
     getDownloadedEpisode,
     getStorageUsage, 
-    clearAllDownloads 
+    clearAllDownloads: clearAllAnimeDownloads 
   } = useOfflineDownload();
+  
+  const {
+    downloads: mangaDownloads,
+    loading: loadingManga,
+    deleteDownload: deleteMangaDownload,
+    getDownloadedChapter,
+    clearAllDownloads: clearAllMangaDownloads
+  } = useMangaOfflineDownload();
   
   const [storageInfo, setStorageInfo] = useState<{ used: number; quota: number; percentage: number } | null>(null);
   const [playingEpisode, setPlayingEpisode] = useState<{ blobUrl: string; title: string; subtitle: string } | null>(null);
+  const [readingChapter, setReadingChapter] = useState<{ chapter: DownloadedMangaChapter; currentPage: number } | null>(null);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [activeTab, setActiveTab] = useState<'anime' | 'manga'>('anime');
+
+  const loading = loadingAnime || loadingManga;
+  const totalDownloads = animeDownloads.length + mangaDownloads.length;
 
   useEffect(() => {
     const loadStorage = async () => {
@@ -29,7 +45,7 @@ const Downloads = () => {
       setStorageInfo(info);
     };
     loadStorage();
-  }, [getStorageUsage, downloads]);
+  }, [getStorageUsage, animeDownloads, mangaDownloads]);
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -71,8 +87,24 @@ const Downloads = () => {
     }
   };
 
-  // Group downloads by anime
-  const groupedDownloads = downloads.reduce((acc, download) => {
+  const handleReadChapter = (chapter: DownloadedMangaChapter) => {
+    setReadingChapter({ chapter, currentPage: 1 });
+  };
+
+  const closeReader = () => {
+    setReadingChapter(null);
+  };
+
+  const handleClearAll = async () => {
+    if (activeTab === 'anime') {
+      await clearAllAnimeDownloads();
+    } else {
+      await clearAllMangaDownloads();
+    }
+  };
+
+  // Group anime downloads by anime
+  const groupedAnimeDownloads = animeDownloads.reduce((acc, download) => {
     if (!acc[download.animeId]) {
       acc[download.animeId] = {
         animeTitle: download.animeTitle,
@@ -82,7 +114,20 @@ const Downloads = () => {
     }
     acc[download.animeId].episodes.push(download);
     return acc;
-  }, {} as Record<number, { animeTitle: string; animeId: number; episodes: typeof downloads }>);
+  }, {} as Record<number, { animeTitle: string; animeId: number; episodes: typeof animeDownloads }>);
+
+  // Group manga downloads by manga
+  const groupedMangaDownloads = mangaDownloads.reduce((acc, download) => {
+    if (!acc[download.mangaId]) {
+      acc[download.mangaId] = {
+        mangaTitle: download.mangaTitle,
+        mangaId: download.mangaId,
+        chapters: []
+      };
+    }
+    acc[download.mangaId].chapters.push(download);
+    return acc;
+  }, {} as Record<string, { mangaTitle: string; mangaId: string; chapters: DownloadedMangaChapter[] }>);
 
   return (
     <div className="min-h-screen bg-background pb-24">
@@ -100,7 +145,7 @@ const Downloads = () => {
             <div>
               <h1 className="font-inter font-bold text-lg">Downloads</h1>
               <p className="text-xs text-muted-foreground">
-                {downloads.length} episodes saved
+                {totalDownloads} items saved
               </p>
             </div>
           </div>
@@ -112,11 +157,12 @@ const Downloads = () => {
                 Offline
               </div>
             )}
-            {downloads.length > 0 && (
+            {((activeTab === 'anime' && animeDownloads.length > 0) || 
+              (activeTab === 'manga' && mangaDownloads.length > 0)) && (
               <Button 
                 variant="ghost" 
                 size="sm"
-                onClick={clearAllDownloads}
+                onClick={handleClearAll}
                 className="text-destructive"
               >
                 <Trash2 className="w-4 h-4 mr-1" />
@@ -147,6 +193,18 @@ const Downloads = () => {
         </div>
       )}
 
+      {/* Offline Manga Reader Modal */}
+      {readingChapter && (
+        <OfflineMangaReader
+          pages={readingChapter.chapter.pages}
+          currentPage={readingChapter.currentPage}
+          onPageChange={(page) => setReadingChapter(prev => prev ? { ...prev, currentPage: page } : null)}
+          onClose={closeReader}
+          chapterTitle={`Ch. ${readingChapter.chapter.chapterNumber}`}
+          mangaTitle={readingChapter.chapter.mangaTitle}
+        />
+      )}
+
       {/* Storage Info */}
       {storageInfo && (
         <div className="p-4 border-b border-border">
@@ -163,105 +221,221 @@ const Downloads = () => {
         </div>
       )}
 
-      {/* Downloads List */}
-      <div className="p-4 space-y-6">
-        {loading ? (
-          <div className="space-y-4">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} className="h-24 rounded-xl bg-card shimmer" />
-            ))}
-          </div>
-        ) : downloads.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-center">
-            <Download className="w-16 h-16 text-muted-foreground mb-4" />
-            <h2 className="text-xl font-semibold mb-2">No Downloads</h2>
-            <p className="text-muted-foreground max-w-xs">
-              Download episodes to watch offline when you don't have internet.
-            </p>
-            <Button 
-              variant="gradient" 
-              className="mt-6"
-              onClick={() => navigate('/')}
-            >
-              Browse Anime
-            </Button>
-          </div>
-        ) : (
-          Object.values(groupedDownloads).map((group) => (
-            <div key={group.animeId} className="space-y-3">
-              <Link 
-                to={`/anime/${group.animeId}`}
-                className="font-inter font-bold text-lg hover:text-primary transition-colors"
+      {/* Tabs */}
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'anime' | 'manga')} className="w-full">
+        <div className="px-4 pt-4">
+          <TabsList className="w-full grid grid-cols-2">
+            <TabsTrigger value="anime" className="flex items-center gap-2">
+              <Video className="w-4 h-4" />
+              Anime ({animeDownloads.length})
+            </TabsTrigger>
+            <TabsTrigger value="manga" className="flex items-center gap-2">
+              <BookOpen className="w-4 h-4" />
+              Manga ({mangaDownloads.length})
+            </TabsTrigger>
+          </TabsList>
+        </div>
+
+        {/* Anime Downloads */}
+        <TabsContent value="anime" className="p-4 space-y-6">
+          {loading ? (
+            <div className="space-y-4">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="h-24 rounded-xl bg-card shimmer" />
+              ))}
+            </div>
+          ) : animeDownloads.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-center">
+              <Video className="w-16 h-16 text-muted-foreground mb-4" />
+              <h2 className="text-xl font-semibold mb-2">No Anime Downloads</h2>
+              <p className="text-muted-foreground max-w-xs">
+                Download episodes to watch offline when you don't have internet.
+              </p>
+              <Button 
+                variant="default" 
+                className="mt-6"
+                onClick={() => navigate('/')}
               >
-                {group.animeTitle}
-              </Link>
-              
-              <div className="space-y-1.5">
-                {group.episodes
-                  .sort((a, b) => a.episodeNumber - b.episodeNumber)
-                  .map((episode) => (
-                    <div 
-                      key={episode.id}
-                      className="flex items-center gap-2.5 p-2 rounded-lg bg-card border border-border/50 group"
-                    >
-                      {/* Thumbnail */}
+                Browse Anime
+              </Button>
+            </div>
+          ) : (
+            Object.values(groupedAnimeDownloads).map((group) => (
+              <div key={group.animeId} className="space-y-3">
+                <Link 
+                  to={`/anime/${group.animeId}`}
+                  className="font-inter font-bold text-lg hover:text-primary transition-colors"
+                >
+                  {group.animeTitle}
+                </Link>
+                
+                <div className="space-y-1.5">
+                  {group.episodes
+                    .sort((a, b) => a.episodeNumber - b.episodeNumber)
+                    .map((episode) => (
                       <div 
-                        className="relative w-20 h-14 sm:w-24 sm:h-16 rounded-md overflow-hidden bg-secondary cursor-pointer flex-shrink-0"
-                        onClick={() => handlePlayDownload(episode.animeId, episode.episodeNumber, episode.animeTitle)}
+                        key={episode.id}
+                        className="flex items-center gap-2.5 p-2 rounded-lg bg-card border border-border/50 group"
                       >
-                        {episode.thumbnail ? (
-                          <img 
-                            src={episode.thumbnail} 
-                            alt=""
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary/20 to-accent/20">
-                            <Play className="w-5 h-5 text-muted-foreground" />
-                          </div>
-                        )}
-                        <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <Play className="w-6 h-6 text-white fill-current" />
-                        </div>
-                      </div>
-                      
-                      {/* Info */}
-                      <div className="flex-1 min-w-0">
-                        <h4 className="font-medium text-sm truncate">
-                          Ep {episode.episodeNumber}
-                          {episode.episodeTitle && `: ${episode.episodeTitle}`}
-                        </h4>
-                        <p className="text-[10px] text-muted-foreground">
-                          {formatBytes(episode.size)} • {new Date(episode.downloadedAt).toLocaleDateString()}
-                        </p>
-                      </div>
-                      
-                      {/* Actions */}
-                      <div className="flex items-center gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
+                        {/* Thumbnail */}
+                        <div 
+                          className="relative w-20 h-14 sm:w-24 sm:h-16 rounded-md overflow-hidden bg-secondary cursor-pointer flex-shrink-0"
                           onClick={() => handlePlayDownload(episode.animeId, episode.episodeNumber, episode.animeTitle)}
                         >
-                          <Play className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-destructive"
-                          onClick={() => deleteDownload(episode.id)}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+                          {episode.thumbnail ? (
+                            <img 
+                              src={episode.thumbnail} 
+                              alt=""
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary/20 to-accent/20">
+                              <Play className="w-5 h-5 text-muted-foreground" />
+                            </div>
+                          )}
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Play className="w-6 h-6 text-white fill-current" />
+                          </div>
+                        </div>
+                        
+                        {/* Info */}
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-medium text-sm truncate">
+                            Ep {episode.episodeNumber}
+                            {episode.episodeTitle && `: ${episode.episodeTitle}`}
+                          </h4>
+                          <p className="text-[10px] text-muted-foreground">
+                            {formatBytes(episode.size)} • {new Date(episode.downloadedAt).toLocaleDateString()}
+                          </p>
+                        </div>
+                        
+                        {/* Actions */}
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => handlePlayDownload(episode.animeId, episode.episodeNumber, episode.animeTitle)}
+                          >
+                            <Play className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-destructive"
+                            onClick={() => deleteAnimeDownload(episode.id)}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                </div>
               </div>
+            ))
+          )}
+        </TabsContent>
+
+        {/* Manga Downloads */}
+        <TabsContent value="manga" className="p-4 space-y-6">
+          {loading ? (
+            <div className="space-y-4">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="h-24 rounded-xl bg-card shimmer" />
+              ))}
             </div>
-          ))
-        )}
-      </div>
+          ) : mangaDownloads.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-center">
+              <BookOpen className="w-16 h-16 text-muted-foreground mb-4" />
+              <h2 className="text-xl font-semibold mb-2">No Manga Downloads</h2>
+              <p className="text-muted-foreground max-w-xs">
+                Download chapters to read offline when you don't have internet.
+              </p>
+              <Button 
+                variant="default" 
+                className="mt-6"
+                onClick={() => navigate('/manga')}
+              >
+                Browse Manga
+              </Button>
+            </div>
+          ) : (
+            Object.values(groupedMangaDownloads).map((group) => (
+              <div key={group.mangaId} className="space-y-3">
+                <Link 
+                  to={`/manga/${group.mangaId}`}
+                  className="font-inter font-bold text-lg hover:text-primary transition-colors"
+                >
+                  {group.mangaTitle}
+                </Link>
+                
+                <div className="space-y-1.5">
+                  {group.chapters
+                    .sort((a, b) => parseFloat(a.chapterNumber) - parseFloat(b.chapterNumber))
+                    .map((chapter) => (
+                      <div 
+                        key={chapter.id}
+                        className="flex items-center gap-2.5 p-2 rounded-lg bg-card border border-border/50 group"
+                      >
+                        {/* Thumbnail */}
+                        <div 
+                          className="relative w-14 h-20 sm:w-16 sm:h-24 rounded-md overflow-hidden bg-secondary cursor-pointer flex-shrink-0"
+                          onClick={() => handleReadChapter(chapter)}
+                        >
+                          {chapter.coverImage ? (
+                            <img 
+                              src={chapter.coverImage} 
+                              alt=""
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary/20 to-accent/20">
+                              <BookOpen className="w-5 h-5 text-muted-foreground" />
+                            </div>
+                          )}
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <BookOpen className="w-6 h-6 text-white" />
+                          </div>
+                        </div>
+                        
+                        {/* Info */}
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-medium text-sm truncate">
+                            Ch. {chapter.chapterNumber}
+                            {chapter.chapterTitle && `: ${chapter.chapterTitle}`}
+                          </h4>
+                          <p className="text-[10px] text-muted-foreground">
+                            {chapter.pageCount} pages • {formatBytes(chapter.size)} • {new Date(chapter.downloadedAt).toLocaleDateString()}
+                          </p>
+                        </div>
+                        
+                        {/* Actions */}
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => handleReadChapter(chapter)}
+                          >
+                            <BookOpen className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-destructive"
+                            onClick={() => deleteMangaDownload(chapter.id)}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            ))
+          )}
+        </TabsContent>
+      </Tabs>
 
       <BottomNav />
     </div>

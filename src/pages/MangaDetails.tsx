@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
   ArrowLeft, 
@@ -11,11 +11,13 @@ import {
   ChevronRight,
   Loader2,
   AlertCircle,
-  RefreshCw
+  RefreshCw,
+  Download
 } from 'lucide-react';
 import Header from '@/components/Header';
 import BottomNav from '@/components/BottomNav';
 import MangaReader from '@/components/MangaReader';
+import MangaDownloadButton from '@/components/MangaDownloadButton';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -27,7 +29,7 @@ import {
   useReadingProgress,
   useBookmarks
 } from '@/hooks/useManga';
-import { prefetchChapterPages, extractOriginalUrl, getFallbackImageUrl } from '@/lib/mangaApi';
+import { prefetchChapterPages, extractOriginalUrl, getFallbackImageUrl, getChapterPages } from '@/lib/mangaApi';
 import { cn } from '@/lib/utils';
 
 const MangaDetails = () => {
@@ -380,15 +382,17 @@ const MangaDetails = () => {
                   const isCurrentChapter = readingProgress?.chapterId === chapter.id;
                   
                   return (
-                    <button
+                    <div
                       key={chapter.id}
-                      onClick={() => handleReadChapter(chapter.id)}
                       className={cn(
-                        "w-full flex items-center justify-between p-3 hover:bg-muted/50 transition-colors text-left",
+                        "w-full flex items-center justify-between p-3 hover:bg-muted/50 transition-colors",
                         isCurrentChapter && "bg-primary/10 hover:bg-primary/20"
                       )}
                     >
-                      <div className="flex-1 min-w-0">
+                      <button
+                        onClick={() => handleReadChapter(chapter.id)}
+                        className="flex-1 min-w-0 text-left"
+                      >
                         <p className={cn(
                           "font-medium truncate",
                           isCurrentChapter && "text-primary"
@@ -407,9 +411,22 @@ const MangaDetails = () => {
                             <span className="text-primary">• Page {readingProgress.page}</span>
                           )}
                         </div>
+                      </button>
+                      <div className="flex items-center gap-1 ml-2">
+                        <MangaDownloadButton
+                          mangaId={id!}
+                          mangaTitle={manga.title}
+                          chapterId={chapter.id}
+                          chapterNumber={chapter.chapterNumber}
+                          chapterTitle={chapter.title}
+                          coverImage={manga.image}
+                          onLoadPages={() => getChapterPages(chapter.id)}
+                          size="icon"
+                          className="h-8 w-8"
+                        />
+                        <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
                       </div>
-                      <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0 ml-2" />
-                    </button>
+                    </div>
                   );
                 })}
               </div>
