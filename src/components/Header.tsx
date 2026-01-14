@@ -2,14 +2,16 @@ import { Search, Bell } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useNotifications } from '@/hooks/useNotifications';
+import DownloadQueuePanel from '@/components/DownloadQueuePanel';
 import appIcon from '@/assets/app-icon.png';
 
 interface HeaderProps {
   showSearch?: boolean;
   showNotifications?: boolean;
+  showDownloads?: boolean;
 }
 
-const Header = ({ showSearch = true, showNotifications = true }: HeaderProps) => {
+const Header = ({ showSearch = true, showNotifications = true, showDownloads = true }: HeaderProps) => {
   const { unreadCount } = useNotifications();
 
   return (
@@ -27,7 +29,10 @@ const Header = ({ showSearch = true, showNotifications = true }: HeaderProps) =>
           <span className="text-xl font-inter font-bold gradient-text">AniDel</span>
         </Link>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
+          {showDownloads && (
+            <DownloadQueuePanel />
+          )}
           {showSearch && (
             <Link to="/search">
               <Button variant="ghost" size="icon" className="rounded-full">
